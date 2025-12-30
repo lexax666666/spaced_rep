@@ -123,3 +123,36 @@ export const sides = pgTable('sides', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+export const reviewLogs = pgTable('review_logs', {
+  id: serial('id').primaryKey(),
+  cardId: uuid('card_id')
+    .notNull()
+    .references(() => cards.id),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  // Review action
+  rating: reviewRatingEnum('rating').notNull(),
+  state: fsrsStateEnum('state').notNull(),
+
+  // Card state before review
+  dueAt: timestamp('due_at').notNull(),
+  stability: doublePrecision('stability').notNull(),
+  difficulty: doublePrecision('difficulty').notNull(),
+
+  // Time tracking
+  elapsedDays: integer('elapsed_days').notNull(),
+  lastElapsedDays: integer('last_elapsed_days').notNull(),
+  scheduledDays: integer('scheduled_days').notNull(),
+
+  // Learning step
+  learningStep: integer('learning_step').notNull(),
+
+  // When this review happened
+  reviewedAt: timestamp('reviewed_at').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
