@@ -33,6 +33,15 @@ export const reviewRatingEnum = pgEnum('review_rating', [
   'EASY',
 ]);
 
+export const schedulerTypeEnum = pgEnum('scheduler_type', ['SM2', 'FSRS']);
+
+export const fsrsStateEnum = pgEnum('fsrs_state', [
+  'NEW',
+  'LEARNING',
+  'REVIEW',
+  'RELEARNING',
+]);
+
 // Tables
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -53,6 +62,9 @@ export const decks = pgTable('decks', {
   newCardsPerDay: integer('new_cards_per_day').notNull(),
   reviewCardsPerDay: integer('review_cards_per_day').notNull(),
   suspendNewCards: boolean('suspend_new_cards').notNull().default(false),
+  fsrsRequestRetention: doublePrecision('fsrs_request_retention')
+    .notNull()
+    .default(0.9),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -66,12 +78,36 @@ export const cards = pgTable('cards', {
     .notNull()
     .references(() => decks.id),
   templateType: cardTemplateTypeEnum('template_type').notNull(),
+
+  // Shared scheduling timestamps (used by BOTH schedulers)
   lastReviewedAt: timestamp('last_reviewed_at'),
   nextReviewAt: timestamp('next_review_at'),
-  intervalDays: integer('interval_days').notNull().default(0),
-  easeFactor: doublePrecision('ease_factor').notNull().default(2.5),
-  reviewCount: integer('review_count').notNull().default(0),
+
+  // -----------------------
+  // SM-2 scheduling state
+  // -----------------------
+  intervalDays: integer('interval_days').notNull().default(0), // I
+  easeFactor: doublePrecision('ease_factor').notNull().default(2.5), // EF
+  repetition: integer('repetition').notNull().default(0), // n (consecutive successes)
+  quality: integer('quality'), // q (0..5)
+  // Keep for UI convenience (maps to quality)
   lastRating: reviewRatingEnum('last_rating'),
+
+  // -----------------------
+  // FSRS scheduling state
+  // -----------------------
+  fsrsStability: doublePrecision('fsrs_stability').notNull().default(0), // S (days); 0 = uninitialized/new
+  fsrsDifficulty: doublePrecision('fsrs_difficulty').notNull().default(0), // D; 0 = uninitialized/new
+  fsrsState: fsrsStateEnum('fsrs_state').notNull().default('NEW'), // card learning state
+  fsrsStep: integer('fsrs_step').notNull().default(0), // current step index in (re)learning
+  fsrsLapses: integer('fsrs_lapses').notNull().default(0), // times forgotten/failed
+
+  // Optional: track which scheduler last wrote nextReviewAt for debugging/migration
+  scheduler: schedulerTypeEnum('scheduler').notNull().default('SM2'),
+
+  // Optional analytics (lifetime count)
+  reviewCount: integer('review_count').notNull().default(0),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
