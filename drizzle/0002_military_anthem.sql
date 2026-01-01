@@ -1,0 +1,1 @@
+ALTER TABLE "cards" ALTER COLUMN "scheduler" SET DEFAULT 'FSRS';

@@ -4,8 +4,8 @@ CREATE TYPE "public"."review_rating" AS ENUM('AGAIN', 'HARD', 'GOOD', 'EASY');--
 CREATE TYPE "public"."scheduler_type" AS ENUM('SM2', 'FSRS');--> statement-breakpoint
 CREATE TYPE "public"."side_type" AS ENUM('RICH_TEXT', 'VIDEO', 'AUDIO', 'CHESS_POSITION');--> statement-breakpoint
 CREATE TABLE "cards" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" integer NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
+	"user_id" uuid NOT NULL,
 	"deck_id" uuid NOT NULL,
 	"template_type" "card_template_type" NOT NULL,
 	"last_reviewed_at" timestamp,
@@ -27,8 +27,8 @@ CREATE TABLE "cards" (
 );
 --> statement-breakpoint
 CREATE TABLE "decks" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" integer NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
+	"user_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
 	"new_cards_per_day" integer NOT NULL,
@@ -40,9 +40,9 @@ CREATE TABLE "decks" (
 );
 --> statement-breakpoint
 CREATE TABLE "review_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
 	"card_id" uuid NOT NULL,
-	"user_id" integer NOT NULL,
+	"user_id" uuid NOT NULL,
 	"rating" "review_rating" NOT NULL,
 	"state" "fsrs_state" NOT NULL,
 	"due_at" timestamp NOT NULL,
@@ -58,13 +58,23 @@ CREATE TABLE "review_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "sides" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
 	"card_id" uuid NOT NULL,
 	"type" "side_type" NOT NULL,
 	"label" text NOT NULL,
 	"value" jsonb NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"id" uuid PRIMARY KEY DEFAULT uuid_generate_v7() NOT NULL,
+	"name" text,
+	"email" text NOT NULL,
+	"password_hash" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 ALTER TABLE "cards" ADD CONSTRAINT "cards_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

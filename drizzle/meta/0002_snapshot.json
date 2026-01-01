@@ -1,6 +1,6 @@
 {
-  "id": "dbac915f-0ce9-4c07-972f-513850cc478b",
-  "prevId": "bd9d9fa6-1c1a-4b92-a694-27e0fd67e677",
+  "id": "ab745853-f4f8-452f-b87e-7a347633dabd",
+  "prevId": "dbac915f-0ce9-4c07-972f-513850cc478b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -122,7 +122,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'SM2'"
+          "default": "'FSRS'"
         },
         "review_count": {
           "name": "review_count",
