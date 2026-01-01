@@ -15,6 +15,13 @@
       "when": 1767293073367,
       "tag": "0001_ambiguous_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767295938349,
+      "tag": "0002_military_anthem",
+      "breakpoints": true
     }
   ]
 }

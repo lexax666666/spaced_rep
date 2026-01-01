@@ -110,7 +110,7 @@ export const cards = pgTable('cards', {
   fsrsLapses: integer('fsrs_lapses').notNull().default(0), // times forgotten/failed
 
   // Optional: track which scheduler last wrote nextReviewAt for debugging/migration
-  scheduler: schedulerTypeEnum('scheduler').notNull().default('SM2'),
+  scheduler: schedulerTypeEnum('scheduler').notNull().default('FSRS'),
 
   // Optional analytics (lifetime count)
   reviewCount: integer('review_count').notNull().default(0),
