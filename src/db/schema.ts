@@ -10,6 +10,7 @@ import {
   boolean,
   jsonb,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // Enums
 export const sideTypeEnum = pgEnum('side_type', [
@@ -44,7 +45,9 @@ export const fsrsStateEnum = pgEnum('fsrs_state', [
 
 // Tables
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`uuid_generate_v7()`),
   name: text('name'),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash'),
@@ -53,8 +56,10 @@ export const users = pgTable('users', {
 });
 
 export const decks = pgTable('decks', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: integer('user_id')
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`uuid_generate_v7()`),
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id),
   name: text('name').notNull(),
@@ -70,8 +75,10 @@ export const decks = pgTable('decks', {
 });
 
 export const cards = pgTable('cards', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: integer('user_id')
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`uuid_generate_v7()`),
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id),
   deckId: uuid('deck_id')
@@ -113,7 +120,9 @@ export const cards = pgTable('cards', {
 });
 
 export const sides = pgTable('sides', {
-  id: serial('id').primaryKey(),
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`uuid_generate_v7()`),
   cardId: uuid('card_id')
     .notNull()
     .references(() => cards.id),
@@ -125,11 +134,13 @@ export const sides = pgTable('sides', {
 });
 
 export const reviewLogs = pgTable('review_logs', {
-  id: serial('id').primaryKey(),
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`uuid_generate_v7()`),
   cardId: uuid('card_id')
     .notNull()
     .references(() => cards.id),
-  userId: integer('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id),
 

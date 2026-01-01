@@ -17,7 +17,7 @@ export interface CreateDeckInput {
 export class DecksDao {
   constructor(@Inject(DRIZZLE_DB) private readonly db: NodePgDatabase) {}
 
-  async getDeckForUser(userId: number, deckId: string) {
+  async getDeckForUser(userId: string, deckId: string) {
     const result = await this.db
       .select()
       .from(decks)
@@ -27,7 +27,7 @@ export class DecksDao {
     return result[0] ?? null;
   }
 
-  async createDeck(userId: number, data: CreateDeckInput) {
+  async createDeck(userId: string, data: CreateDeckInput) {
     const result = await this.db
       .insert(decks)
       .values({

@@ -8,7 +8,7 @@ import { users } from '../db/schema';
 describe('DecksDao', () => {
   let dao: DecksDao;
   let db: NodePgDatabase;
-  let testUserId: number;
+  let testUserId: string;
 
   beforeAll(() => {
     db = getTestDatabase();

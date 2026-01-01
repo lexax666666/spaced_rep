@@ -5,7 +5,7 @@ import { cards } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
 export interface InsertCardInput {
-  userId: number;
+  userId: string;
   deckId: string;
   templateType: 'VOCAB' | 'CHESS' | 'STANDARD_FLASH_CARD' | 'CUSTOM';
 }

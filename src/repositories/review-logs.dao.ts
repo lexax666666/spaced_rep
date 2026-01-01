@@ -5,7 +5,7 @@ import { reviewLogs } from '../db/schema';
 
 export interface ReviewLogInsert {
   cardId: string;
-  userId: number;
+  userId: string;
   rating: 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
   dueAt: Date;
