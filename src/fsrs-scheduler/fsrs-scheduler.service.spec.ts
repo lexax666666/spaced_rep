@@ -146,7 +146,4 @@ describe('FsrsSchedulerService', () => {
       expect(result.card.due).toEqual(new Date('2026-01-08T05:00:00.000Z'));
     });
   });
-
-
-
 });
