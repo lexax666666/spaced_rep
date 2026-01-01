@@ -7,16 +7,18 @@ export interface FsrsScheduleConfig {
 
 @Injectable()
 export class FsrsSchedulerService {
+  private makeFsrs(requestRetention: number) {
+    return new FSRS({ request_retention: requestRetention });
+  }
+
   schedule(
     config: FsrsScheduleConfig,
     card: Card,
     grade: Grade,
+    now: Date = new Date(),
   ): RecordLogItem {
-    const fsrs = new FSRS({
-      request_retention: config.requestRetention,
-    });
-
-    const now = new Date();
-    return fsrs.repeat(card, now)[grade];
+    const fsrs = this.makeFsrs(config.requestRetention);
+    const resultByGrade = fsrs.repeat(card, now);
+    return resultByGrade[grade];
   }
 }
