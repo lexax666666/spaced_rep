@@ -40,6 +40,7 @@ describe('FsrsSchedulerService', () => {
       expect(result.card.reps).toEqual(1);
       expect(result.card.state).toEqual(State.Learning);
       expect(result.card.learning_steps).toEqual(1);
+      expect(result.card.due).toEqual(new Date('2025-12-31T05:10:00.000Z'));
     });
 
     it('New + Again', () => {
@@ -75,6 +76,7 @@ describe('FsrsSchedulerService', () => {
 
       // Due should be soon (same day - scheduled_days should be 0)
       expect(result.card.difficulty).toEqual(6.4133);
+      expect(result.card.due).toEqual(new Date('2025-12-31T05:01:00.000Z'));
     });
 
     it('New + Hard', () => {
@@ -107,6 +109,7 @@ describe('FsrsSchedulerService', () => {
       // Stability should be between Again and Good
       expect(result.card.stability).toEqual(1.2931);
       expect(result.card.difficulty).toEqual(5.11217071);
+      expect(result.card.due).toEqual(new Date('2025-12-31T05:06:00.000Z'));
     });
 
     it('New + Easy', () => {
@@ -140,6 +143,10 @@ describe('FsrsSchedulerService', () => {
 
       // Due should be further out than Good (larger scheduled_days)
       expect(result.card.difficulty).toEqual(1);
+      expect(result.card.due).toEqual(new Date('2026-01-08T05:00:00.000Z'));
     });
   });
+
+
+
 });
