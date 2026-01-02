@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './db/database.module';
 import { HealthModule } from './health/health.module';
 import { FsrsSchedulerModule } from './fsrs-scheduler/fsrs-scheduler.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { FsrsSchedulerModule } from './fsrs-scheduler/fsrs-scheduler.module';
     DatabaseModule,
     HealthModule,
     FsrsSchedulerModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
