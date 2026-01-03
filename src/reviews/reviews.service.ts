@@ -54,32 +54,39 @@ export class ReviewsService {
     // 5. Use transaction to update card and save log
     await this.db.transaction(async (tx) => {
       // Update card with new scheduling data
-      await this.cardsDao.updateCardScheduling(tx, cardId, {
-        lastReviewedAt: reviewedAt,
-        nextReviewAt: scheduleResult.card.due,
-        fsrsStability: scheduleResult.card.stability,
-        fsrsDifficulty: scheduleResult.card.difficulty,
-        fsrsState: this.mapFsrsStateToDb(scheduleResult.card.state),
-        fsrsLapses: scheduleResult.card.lapses,
-        reviewCount: scheduleResult.card.reps,
-        lastRating: this.mapRatingToEnum(rating),
-      });
+      await this.cardsDao.updateCardScheduling(
+        cardId,
+        {
+          lastReviewedAt: reviewedAt,
+          nextReviewAt: scheduleResult.card.due,
+          fsrsStability: scheduleResult.card.stability,
+          fsrsDifficulty: scheduleResult.card.difficulty,
+          fsrsState: this.mapFsrsStateToDb(scheduleResult.card.state),
+          fsrsLapses: scheduleResult.card.lapses,
+          reviewCount: scheduleResult.card.reps,
+          lastRating: this.mapRatingToEnum(rating),
+        },
+        tx,
+      );
 
       // Insert review log
-      await this.reviewLogsDao.insert(tx, {
-        cardId,
-        userId,
-        rating: this.mapRatingToEnum(rating),
-        state: this.mapFsrsStateToDb(scheduleResult.log.state),
-        dueAt: scheduleResult.log.review,
-        stability: scheduleResult.log.stability,
-        difficulty: scheduleResult.log.difficulty,
-        elapsedDays: scheduleResult.log.elapsed_days,
-        lastElapsedDays: scheduleResult.log.last_elapsed_days,
-        scheduledDays: scheduleResult.log.scheduled_days,
-        learningStep: dbCard.fsrsStep,
-        reviewedAt,
-      });
+      await this.reviewLogsDao.insert(
+        {
+          cardId,
+          userId,
+          rating: this.mapRatingToEnum(rating),
+          state: this.mapFsrsStateToDb(scheduleResult.log.state),
+          dueAt: scheduleResult.log.review,
+          stability: scheduleResult.log.stability,
+          difficulty: scheduleResult.log.difficulty,
+          elapsedDays: scheduleResult.log.elapsed_days,
+          lastElapsedDays: scheduleResult.log.last_elapsed_days,
+          scheduledDays: scheduleResult.log.scheduled_days,
+          learningStep: dbCard.fsrsStep,
+          reviewedAt,
+        },
+        tx,
+      );
     });
 
     // Return the updated card
