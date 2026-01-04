@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FsrsSchedulerService } from './fsrs-scheduler.service';
-import { Card, Grade, Rating, State } from 'ts-fsrs';
+import { Card, Grade, Rating, State, createEmptyCard } from 'ts-fsrs';
 
 describe('FsrsSchedulerService', () => {
   let service: FsrsSchedulerService;
@@ -15,6 +15,7 @@ describe('FsrsSchedulerService', () => {
 
   describe('initial review', () => {
     it('New + Good', () => {
+      const emptyCard: Card = createEmptyCard();
       const config = { requestRetention: 0.9 };
       const grade: Grade = Rating.Good;
 
@@ -30,7 +31,7 @@ describe('FsrsSchedulerService', () => {
         reps: 0,
         lapses: 0,
         state: State.New,
-        last_review: newDate,
+        last_review: undefined,
         learning_steps: 0,
       };
 
