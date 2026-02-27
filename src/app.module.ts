@@ -8,6 +8,7 @@ import { FsrsSchedulerModule } from './fsrs-scheduler/fsrs-scheduler.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
 import { DecksModule } from './decks/decks.module';
+import { CardsModule } from './cards/cards.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { DecksModule } from './decks/decks.module';
     ReviewsModule,
     AuthModule,
     DecksModule,
+    CardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

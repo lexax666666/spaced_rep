@@ -161,6 +161,118 @@ describe('CardsDao', () => {
     });
   });
 
+  describe('getCardsByDeckId', () => {
+    it('should return all cards for a deck ordered by createdAt desc', async () => {
+      await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+        templateType: 'VOCAB',
+      });
+      await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+        templateType: 'CHESS',
+      });
+
+      const result = await dao.getCardsByDeckId(testDeckId, testUserId);
+
+      expect(result).toHaveLength(2);
+      // Ordered by createdAt desc, so the second inserted card comes first
+      expect(result[0].templateType).toBe('CHESS');
+      expect(result[1].templateType).toBe('VOCAB');
+    });
+
+    it('should return empty array when deck has no cards', async () => {
+      const result = await dao.getCardsByDeckId(testDeckId, testUserId);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should not return cards from other decks', async () => {
+      // Create another deck
+      const otherDeck = await db
+        .insert(decks)
+        .values({
+          userId: testUserId,
+          name: 'Other Deck',
+          newCardsPerDay: 10,
+          reviewCardsPerDay: 50,
+        })
+        .returning();
+
+      await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+        templateType: 'VOCAB',
+      });
+      await dao.insertCard({
+        userId: testUserId,
+        deckId: otherDeck[0].id,
+        templateType: 'CHESS',
+      });
+
+      const result = await dao.getCardsByDeckId(testDeckId, testUserId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].deckId).toBe(testDeckId);
+    });
+  });
+
+  describe('deleteCard', () => {
+    it('should delete card and return true', async () => {
+      const created = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+        templateType: 'VOCAB',
+      });
+
+      const result = await dao.deleteCard(testDeckId, created.id);
+
+      expect(result).toBe(true);
+
+      // Verify it's gone
+      const found = await dao.getCardById(testDeckId, created.id);
+      expect(found).toBeNull();
+    });
+
+    it('should return false when card does not exist', async () => {
+      const result = await dao.deleteCard(
+        testDeckId,
+        '00000000-0000-0000-0000-000000000000',
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when card belongs to different deck', async () => {
+      // Create another deck
+      const otherDeck = await db
+        .insert(decks)
+        .values({
+          userId: testUserId,
+          name: 'Other Deck',
+          newCardsPerDay: 10,
+          reviewCardsPerDay: 50,
+        })
+        .returning();
+
+      const created = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+        templateType: 'VOCAB',
+      });
+
+      // Try to delete with wrong deck ID
+      const result = await dao.deleteCard(otherDeck[0].id, created.id);
+
+      expect(result).toBe(false);
+
+      // Verify it still exists
+      const found = await dao.getCardById(testDeckId, created.id);
+      expect(found).toBeDefined();
+    });
+  });
+
   describe('updateCardScheduling', () => {
     it('should update card scheduling fields', async () => {
       const created = await dao.insertCard({

@@ -13,7 +13,7 @@ import {
 import { DecksService } from './decks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateDeckInput, UpdateDeckInput } from '../repositories/decks.dao';
+import { CreateDeckDto, UpdateDeckDto } from './decks.dto';
 
 @Controller('decks')
 @UseGuards(JwtAuthGuard)
@@ -23,7 +23,7 @@ export class DecksController {
   @Post()
   async create(
     @CurrentUser('sub') userId: string,
-    @Body() dto: CreateDeckInput,
+    @Body() dto: CreateDeckDto,
   ) {
     return this.decksService.create(userId, dto);
   }
@@ -45,7 +45,7 @@ export class DecksController {
   async update(
     @CurrentUser('sub') userId: string,
     @Param('id') id: string,
-    @Body() dto: UpdateDeckInput,
+    @Body() dto: UpdateDeckDto,
   ) {
     return this.decksService.update(userId, id, dto);
   }

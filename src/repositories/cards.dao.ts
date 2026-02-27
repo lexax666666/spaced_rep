@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { cards } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 
 export interface InsertCardInput {
   userId: string;
@@ -64,5 +64,23 @@ export class CardsDao {
       .returning();
 
     return result[0];
+  }
+
+  async getCardsByDeckId(deckId: string, userId: string) {
+    return this.db
+      .select()
+      .from(cards)
+      .where(and(eq(cards.deckId, deckId), eq(cards.userId, userId)))
+      .orderBy(desc(cards.createdAt));
+  }
+
+  async deleteCard(deckId: string, cardId: string, tx?: NodePgDatabase) {
+    const db = tx ?? this.db;
+    const result = await db
+      .delete(cards)
+      .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
+      .returning();
+
+    return result.length > 0;
   }
 }
