@@ -22,8 +22,9 @@ export interface ReviewLogInsert {
 export class ReviewLogsDao {
   constructor(@Inject(DRIZZLE_DB) private readonly db: NodePgDatabase) {}
 
-  async insert(tx: NodePgDatabase, reviewRow: ReviewLogInsert) {
-    const result = await tx.insert(reviewLogs).values(reviewRow).returning();
+  async insert(reviewRow: ReviewLogInsert, tx?: NodePgDatabase) {
+    const db = tx ?? this.db;
+    const result = await db.insert(reviewLogs).values(reviewRow).returning();
 
     return result[0];
   }

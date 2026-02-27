@@ -172,17 +172,21 @@ describe('CardsDao', () => {
       const now = new Date();
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-      const result = await dao.updateCardScheduling(db, created.id, {
-        lastReviewedAt: now,
-        nextReviewAt: tomorrow,
-        fsrsStability: 5.5,
-        fsrsDifficulty: 3.2,
-        fsrsState: 'REVIEW',
-        fsrsStep: 2,
-        fsrsLapses: 1,
-        reviewCount: 3,
-        lastRating: 'GOOD',
-      });
+      const result = await dao.updateCardScheduling(
+        created.id,
+        {
+          lastReviewedAt: now,
+          nextReviewAt: tomorrow,
+          fsrsStability: 5.5,
+          fsrsDifficulty: 3.2,
+          fsrsState: 'REVIEW',
+          fsrsStep: 2,
+          fsrsLapses: 1,
+          reviewCount: 3,
+          lastRating: 'GOOD',
+        },
+        db,
+      );
 
       expect(result).toBeDefined();
       expect(result.id).toBe(created.id);
@@ -205,10 +209,14 @@ describe('CardsDao', () => {
       });
 
       // Only update a few fields
-      const result = await dao.updateCardScheduling(db, created.id, {
-        fsrsStability: 2.5,
-        reviewCount: 1,
-      });
+      const result = await dao.updateCardScheduling(
+        created.id,
+        {
+          fsrsStability: 2.5,
+          reviewCount: 1,
+        },
+        db,
+      );
 
       expect(result.fsrsStability).toBe(2.5);
       expect(result.reviewCount).toBe(1);
@@ -225,19 +233,27 @@ describe('CardsDao', () => {
       });
 
       // Move from NEW to LEARNING
-      const learning = await dao.updateCardScheduling(db, created.id, {
-        fsrsState: 'LEARNING',
-        fsrsStep: 1,
-      });
+      const learning = await dao.updateCardScheduling(
+        created.id,
+        {
+          fsrsState: 'LEARNING',
+          fsrsStep: 1,
+        },
+        db,
+      );
       expect(learning.fsrsState).toBe('LEARNING');
       expect(learning.fsrsStep).toBe(1);
 
       // Move from LEARNING to REVIEW
-      const review = await dao.updateCardScheduling(db, created.id, {
-        fsrsState: 'REVIEW',
-        fsrsStability: 10.0,
-        fsrsDifficulty: 5.0,
-      });
+      const review = await dao.updateCardScheduling(
+        created.id,
+        {
+          fsrsState: 'REVIEW',
+          fsrsStability: 10.0,
+          fsrsDifficulty: 5.0,
+        },
+        db,
+      );
       expect(review.fsrsState).toBe('REVIEW');
       expect(review.fsrsStability).toBe(10.0);
       expect(review.fsrsDifficulty).toBe(5.0);
@@ -258,9 +274,13 @@ describe('CardsDao', () => {
       ];
 
       for (const rating of ratings) {
-        const result = await dao.updateCardScheduling(db, created.id, {
-          lastRating: rating,
-        });
+        const result = await dao.updateCardScheduling(
+          created.id,
+          {
+            lastRating: rating,
+          },
+          db,
+        );
         expect(result.lastRating).toBe(rating);
       }
     });

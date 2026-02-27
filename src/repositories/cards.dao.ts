@@ -26,8 +26,9 @@ export interface CardSchedulingPatch {
 export class CardsDao {
   constructor(@Inject(DRIZZLE_DB) private readonly db: NodePgDatabase) {}
 
-  async getCardById(deckId: string, cardId: string) {
-    const result = await this.db
+  async getCardById(deckId: string, cardId: string, tx?: NodePgDatabase) {
+    const db = tx ?? this.db;
+    const result = await db
       .select()
       .from(cards)
       .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
@@ -37,11 +38,12 @@ export class CardsDao {
   }
 
   async updateCardScheduling(
-    tx: NodePgDatabase,
     cardId: string,
     patch: CardSchedulingPatch,
+    tx?: NodePgDatabase,
   ) {
-    const result = await tx
+    const db = tx ?? this.db;
+    const result = await db
       .update(cards)
       .set(patch)
       .where(eq(cards.id, cardId))
@@ -50,8 +52,9 @@ export class CardsDao {
     return result[0];
   }
 
-  async insertCard(data: InsertCardInput) {
-    const result = await this.db
+  async insertCard(data: InsertCardInput, tx?: NodePgDatabase) {
+    const db = tx ?? this.db;
+    const result = await db
       .insert(cards)
       .values({
         userId: data.userId,

@@ -12,9 +12,7 @@ let pool: Pool;
 export async function setupTestDatabase() {
   console.log('Starting PostgreSQL container...');
 
-  const container = await new PostgreSqlContainer(
-    'ghcr.io/fboulnois/pg_uuidv7:1.7.0',
-  )
+  container = await new PostgreSqlContainer('ghcr.io/fboulnois/pg_uuidv7:1.7.0')
     .withExposedPorts(5432)
     .start();
 
