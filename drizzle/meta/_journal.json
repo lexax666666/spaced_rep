@@ -36,6 +36,13 @@
       "when": 1795502095721,
       "tag": "0004_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795502531153,
+      "tag": "0005_live_cards_index",
+      "breakpoints": true
     }
   ]
 }

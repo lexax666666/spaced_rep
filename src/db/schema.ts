@@ -173,11 +173,14 @@ export const cards = pgTable(
     deletedAt: timestamptz('deleted_at'),
   },
   (table) => [
-    // Serves "due cards in this deck" and plain lookups by deck.
-    index('cards_deck_id_next_review_at_idx').on(
-      table.deckId,
-      table.nextReviewAt,
-    ),
+    // Foreign key index. Covers every row, deleted ones included, so that
+    // removing a deck for good can find its cards.
+    index('cards_deck_id_idx').on(table.deckId),
+    // Serves "due cards in this deck" and deck listings. Partial: soft-deleted
+    // cards are never read by those queries, so they are left out of the index.
+    index('cards_live_deck_id_next_review_at_idx')
+      .on(table.deckId, table.nextReviewAt)
+      .where(sql`${table.deletedAt} is null`),
     index('cards_user_id_idx').on(table.userId),
     index('cards_template_id_idx').on(table.templateId),
   ],

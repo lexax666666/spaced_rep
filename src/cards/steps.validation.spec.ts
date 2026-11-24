@@ -62,7 +62,7 @@ describe('parseSteps', () => {
 
   it('should name the offending step in the message', () => {
     expect(() => parseSteps([validStep, { ...validStep, value: 1 }])).toThrow(
-      'steps[1].value must be a JSON object',
+      'steps[1].value: must be a JSON object',
     );
   });
 });

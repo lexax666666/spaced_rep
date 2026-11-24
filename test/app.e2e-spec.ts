@@ -358,6 +358,158 @@ describe('App (e2e)', () => {
     });
   });
 
+  // ─── Invalid request bodies ──────────────────────────────
+
+  describe('Invalid request bodies', () => {
+    const authed = (req: request.Test) =>
+      req.set('Authorization', `Bearer ${accessToken}`);
+    let ownDeckId: string;
+
+    beforeAll(async () => {
+      const res = await authed(
+        request(app.getHttpServer()).post('/decks'),
+      ).send({
+        name: 'Validation deck',
+        newCardsPerDay: 5,
+        reviewCardsPerDay: 5,
+      });
+      ownDeckId = (res.body as { id: string }).id;
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['an email that is not a string', { email: 5, password: 'password123' }],
+      ['a malformed email', { email: 'nope', password: 'password123' }],
+      ['a short password', { email: 'new@example.com', password: 'short' }],
+    ])(
+      'POST /auth/register — should return 400 for %s',
+      async (_case, body) => {
+        await request(app.getHttpServer())
+          .post('/auth/register')
+          .send(body)
+          .expect(400);
+      },
+    );
+
+    it('POST /auth/login — should return 400 for an empty body', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({})
+        .expect(400);
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['missing daily limits', { name: 'x' }],
+      [
+        'a daily limit that is not a number',
+        { name: 'x', newCardsPerDay: 'many', reviewCardsPerDay: 1 },
+      ],
+      ['a blank name', { name: ' ', newCardsPerDay: 1, reviewCardsPerDay: 1 }],
+      [
+        'a retention outside 0..1',
+        {
+          name: 'x',
+          newCardsPerDay: 1,
+          reviewCardsPerDay: 1,
+          fsrsRequestRetention: 1.5,
+        },
+      ],
+    ])('POST /decks — should return 400 for %s', async (_case, body) => {
+      await authed(request(app.getHttpServer()).post('/decks'))
+        .send(body)
+        .expect(400);
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['only unknown fields', { bogus: 1 }],
+      ['a wrong type', { newCardsPerDay: 'many' }],
+      ['a null name', { name: null }],
+    ])('PATCH /decks/:id — should return 400 for %s', async (_case, body) => {
+      await authed(request(app.getHttpServer()).patch(`/decks/${ownDeckId}`))
+        .send(body)
+        .expect(400);
+    });
+
+    it('PATCH /decks/:id — should ignore fields a client must not set', async () => {
+      const res = await authed(
+        request(app.getHttpServer()).patch(`/decks/${ownDeckId}`),
+      )
+        .send({
+          name: 'Renamed',
+          userId: '00000000-0000-7000-8000-000000000000',
+          deletedAt: '2020-01-01T00:00:00.000Z',
+        })
+        .expect(200);
+
+      const deck = res.body as { name: string; deletedAt: string | null };
+      expect(deck.name).toBe('Renamed');
+      expect(deck.deletedAt).toBeNull();
+      // Still owned by, and visible to, the same user
+      await authed(
+        request(app.getHttpServer()).get(`/decks/${ownDeckId}`),
+      ).expect(200);
+    });
+
+    it('POST /decks/:deckId/cards — should create an empty card when there is no body', async () => {
+      const res = await authed(
+        request(app.getHttpServer()).post(`/decks/${ownDeckId}/cards`),
+      ).expect(201);
+
+      expect((res.body as { steps: unknown[] }).steps).toEqual([]);
+    });
+
+    it('POST /decks/:deckId/cards — should return 400 when the body is not an object', async () => {
+      await authed(
+        request(app.getHttpServer()).post(`/decks/${ownDeckId}/cards`),
+      )
+        .send([])
+        .expect(400);
+    });
+
+    it('PATCH /decks/:id — should clear the description with null', async () => {
+      const res = await authed(
+        request(app.getHttpServer()).patch(`/decks/${ownDeckId}`),
+      )
+        .send({ description: null })
+        .expect(200);
+
+      expect(
+        (res.body as { description: string | null }).description,
+      ).toBeNull();
+    });
+
+    it('PATCH /decks/:deckId/cards/:id — should return 400 when there is no body', async () => {
+      const created = await authed(
+        request(app.getHttpServer()).post(`/decks/${ownDeckId}/cards`),
+      ).send({ steps: [] });
+      const createdId = (created.body as { id: string }).id;
+
+      await authed(
+        request(app.getHttpServer()).patch(
+          `/decks/${ownDeckId}/cards/${createdId}`,
+        ),
+      ).expect(400);
+    });
+
+    it('DELETE /decks/:id — should hide the deck and its cards', async () => {
+      await authed(
+        request(app.getHttpServer()).delete(`/decks/${ownDeckId}`),
+      ).expect(204);
+
+      await authed(
+        request(app.getHttpServer()).get(`/decks/${ownDeckId}`),
+      ).expect(404);
+      await authed(
+        request(app.getHttpServer()).get(`/decks/${ownDeckId}/cards`),
+      ).expect(404);
+      await authed(
+        request(app.getHttpServer()).delete(`/decks/${ownDeckId}`),
+      ).expect(404);
+    });
+  });
+
   // ─── Auth Guard Tests ────────────────────────────────────
 
   describe('Auth Guard', () => {

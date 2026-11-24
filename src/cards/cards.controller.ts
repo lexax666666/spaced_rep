@@ -14,7 +14,7 @@ import {
 import { CardsService } from './cards.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateCardDto, UpdateCardDto } from './cards.dto';
+import type { CreateCardDto, UpdateCardDto } from './cards.dto';
 
 @Controller('decks/:deckId/cards')
 @UseGuards(JwtAuthGuard)

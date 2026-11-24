@@ -14,7 +14,9 @@ import {
 import { DecksService } from './decks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateDeckDto, UpdateDeckDto } from './decks.dto';
+import { ZodValidationPipe } from '../common/validation';
+import { createDeckSchema, updateDeckSchema } from './decks.dto';
+import type { CreateDeckDto, UpdateDeckDto } from './decks.dto';
 
 @Controller('decks')
 @UseGuards(JwtAuthGuard)
@@ -22,7 +24,10 @@ export class DecksController {
   constructor(private readonly decksService: DecksService) {}
 
   @Post()
-  async create(@CurrentUser('sub') userId: string, @Body() dto: CreateDeckDto) {
+  async create(
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(createDeckSchema)) dto: CreateDeckDto,
+  ) {
     return this.decksService.create(userId, dto);
   }
 
@@ -43,7 +48,7 @@ export class DecksController {
   async update(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateDeckDto,
+    @Body(new ZodValidationPipe(updateDeckSchema)) dto: UpdateDeckDto,
   ) {
     return this.decksService.update(userId, id, dto);
   }

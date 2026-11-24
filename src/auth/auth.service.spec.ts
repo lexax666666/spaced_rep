@@ -118,6 +118,22 @@ describe('AuthService', () => {
     });
   });
 
+  describe('register - concurrency', () => {
+    it('should turn a simultaneous duplicate into a conflict, not a crash', async () => {
+      const dto = { email: 'race@example.com', password: 'password123' };
+
+      const results = await Promise.allSettled([
+        service.register(dto),
+        service.register(dto),
+      ]);
+
+      const rejected = results.filter((result) => result.status === 'rejected');
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+    });
+  });
+
   describe('login', () => {
     it('should return accessToken for valid credentials', async () => {
       // First register a user

@@ -6,7 +6,7 @@ import { eq, and, desc, isNull } from 'drizzle-orm';
 
 export interface CreateDeckInput {
   name: string;
-  description?: string;
+  description?: string | null;
   newCardsPerDay: number;
   reviewCardsPerDay: number;
   suspendNewCards?: boolean;
@@ -15,7 +15,7 @@ export interface CreateDeckInput {
 
 export interface UpdateDeckInput {
   name?: string;
-  description?: string;
+  description?: string | null;
   newCardsPerDay?: number;
   reviewCardsPerDay?: number;
   suspendNewCards?: boolean;

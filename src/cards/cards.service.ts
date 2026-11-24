@@ -12,9 +12,13 @@ import { CardsDao } from '../repositories/cards.dao';
 import { Step, StepsDao } from '../repositories/steps.dao';
 import { DecksDao } from '../repositories/decks.dao';
 import { CardTemplatesDao } from '../repositories/card-templates.dao';
-import { CreateCardDto, UpdateCardDto } from './cards.dto';
-import { isUuid } from '../common/validation';
-import { parseSteps } from './steps.validation';
+import {
+  CreateCardDto,
+  UpdateCardDto,
+  createCardSchema,
+  updateCardSchema,
+} from './cards.dto';
+import { parseWith } from '../common/validation';
 
 type Card = InferSelectModel<typeof cards>;
 export type CardWithSteps = Card & { steps: Step[] };
@@ -32,20 +36,23 @@ export class CardsService {
   async create(
     userId: string,
     deckId: string,
-    dto: CreateCardDto,
+    // Undefined when the request has no body.
+    dto: CreateCardDto | undefined,
   ): Promise<CardWithSteps> {
     const deck = await this.decksDao.getDeckForUser(userId, deckId);
     if (!deck) {
       throw new NotFoundException('Deck not found');
     }
 
-    const stepInputs = parseSteps(dto.steps ?? []);
+    // A request without a body is treated as an empty card.
+    const input = parseWith(createCardSchema, dto ?? {});
+    const stepInputs = input.steps;
     if (stepInputs.some((step) => step.id)) {
       throw new BadRequestException('steps must not carry an id on create');
     }
     // The template is only recorded. The client copies its step definitions
     // into `steps`, so a card can start from a template and then diverge.
-    const templateId = await this.resolveTemplateId(userId, dto.templateId);
+    const templateId = await this.resolveTemplateId(userId, input.templateId);
 
     return this.db.transaction(async (tx) => {
       // Hold the deck so it cannot be deleted between the check and the insert.
@@ -113,9 +120,9 @@ export class CardsService {
     userId: string,
     deckId: string,
     cardId: string,
-    dto: UpdateCardDto,
+    dto: UpdateCardDto | undefined,
   ): Promise<CardWithSteps> {
-    const stepInputs = parseSteps(dto.steps);
+    const stepInputs = parseWith(updateCardSchema, dto).steps;
 
     return this.db.transaction(async (tx) => {
       // Lock the card so a concurrent edit or review cannot interleave.
@@ -171,13 +178,10 @@ export class CardsService {
 
   private async resolveTemplateId(
     userId: string,
-    templateId: unknown,
+    templateId: string | null | undefined,
   ): Promise<string | null> {
-    if (templateId === undefined || templateId === null) {
+    if (!templateId) {
       return null;
-    }
-    if (!isUuid(templateId)) {
-      throw new BadRequestException('templateId must be a UUID');
     }
 
     const template = await this.cardTemplatesDao.getTemplateForUser(
