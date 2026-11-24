@@ -34,7 +34,7 @@ export class DecksService {
   }
 
   async remove(userId: string, deckId: string) {
-    const deleted = await this.decksDao.deleteDeck(userId, deckId);
+    const deleted = await this.decksDao.softDeleteDeck(userId, deckId);
     if (!deleted) {
       throw new NotFoundException('Deck not found');
     }

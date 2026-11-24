@@ -260,6 +260,17 @@ describe('ReviewsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('should throw NotFoundException when the card was deleted', async () => {
+      await db
+        .update(cards)
+        .set({ deletedAt: new Date() })
+        .where(eq(cards.id, testCardId));
+
+      await expect(
+        service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good),
+      ).rejects.toThrow(NotFoundException);
+    });
+
     it('should throw NotFoundException when card belongs to different deck', async () => {
       // Create another deck
       const otherDeck = await db

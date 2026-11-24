@@ -91,6 +91,8 @@ export const decks = pgTable(
       .default(0.9),
     createdAt: timestamptz('created_at').defaultNow().notNull(),
     updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+    // Soft delete: set when the deck is deleted. Its cards get the same value.
+    deletedAt: timestamptz('deleted_at'),
   },
   (table) => [index('decks_user_id_idx').on(table.userId)],
 );
@@ -166,6 +168,9 @@ export const cards = pgTable(
 
     createdAt: timestamptz('created_at').defaultNow().notNull(),
     updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+    // Soft delete: set when the card is deleted. The row, its steps and its
+    // review history stay, so the card can be restored.
+    deletedAt: timestamptz('deleted_at'),
   },
   (table) => [
     // Serves "due cards in this deck" and plain lookups by deck.

@@ -56,7 +56,7 @@ export class ReviewsService {
       throw new NotFoundException('Deck not found');
     }
 
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       // 2. Fetch the card and lock it, so a concurrent edit or review of the
       // same card waits until this one is done.
       const dbCard = await this.cardsDao.getCardByIdForUpdate(
@@ -91,7 +91,7 @@ export class ReviewsService {
       );
 
       // 5. Update card with new scheduling data
-      await this.cardsDao.updateCardScheduling(
+      const updatedCard = await this.cardsDao.updateCardScheduling(
         cardId,
         {
           lastReviewedAt: reviewedAt,
@@ -134,10 +134,9 @@ export class ReviewsService {
         })),
         tx,
       );
-    });
 
-    // Return the updated card
-    return this.cardsDao.getCardById(deckId, cardId);
+      return updatedCard;
+    });
   }
 
   private convertDbCardToFsrsCard(dbCard: DbCard, reviewedAt: Date): Card {

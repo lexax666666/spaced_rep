@@ -340,6 +340,24 @@ describe('App (e2e)', () => {
     });
   });
 
+  // ─── Malformed ids ───────────────────────────────────────
+
+  describe('Malformed ids', () => {
+    it('GET /decks/:id — should return 400 for an id that is not a UUID', async () => {
+      await request(app.getHttpServer())
+        .get('/decks/not-a-uuid')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+    });
+
+    it('GET /decks/:deckId/cards/:id — should return 400 for an id that is not a UUID', async () => {
+      await request(app.getHttpServer())
+        .get(`/decks/${deckId}/cards/abc`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+    });
+  });
+
   // ─── Auth Guard Tests ────────────────────────────────────
 
   describe('Auth Guard', () => {

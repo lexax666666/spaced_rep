@@ -48,6 +48,16 @@ export class CardsService {
     const templateId = await this.resolveTemplateId(userId, dto.templateId);
 
     return this.db.transaction(async (tx) => {
+      // Hold the deck so it cannot be deleted between the check and the insert.
+      const liveDeck = await this.decksDao.getDeckForUserForShare(
+        userId,
+        deckId,
+        tx,
+      );
+      if (!liveDeck) {
+        throw new NotFoundException('Deck not found');
+      }
+
       const card = await this.cardsDao.insertCard(
         { userId, deckId, templateId },
         tx,
@@ -137,8 +147,13 @@ export class CardsService {
   async remove(userId: string, deckId: string, cardId: string): Promise<void> {
     await this.getOwnedCard(userId, deckId, cardId);
 
-    // The card's steps are removed by the foreign key's ON DELETE CASCADE.
-    await this.cardsDao.deleteCard(deckId, cardId);
+    // Soft delete: the card is hidden, but it, its steps and its review
+    // history stay in the database so it can be restored.
+    const deleted = await this.cardsDao.softDeleteCard(deckId, cardId);
+    if (!deleted) {
+      // Lost a race with another delete of the same card.
+      throw new NotFoundException('Card not found');
+    }
   }
 
   private async getOwnedCard(

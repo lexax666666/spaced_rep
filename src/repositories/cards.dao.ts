@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { cards } from '../db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 
 export interface InsertCardInput {
   userId: string;
@@ -32,7 +32,13 @@ export class CardsDao {
     const result = await db
       .select()
       .from(cards)
-      .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(cards.deckId, deckId),
+          isNull(cards.deletedAt),
+        ),
+      )
       .limit(1);
 
     return result[0] ?? null;
@@ -50,7 +56,13 @@ export class CardsDao {
     const result = await tx
       .select()
       .from(cards)
-      .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(cards.deckId, deckId),
+          isNull(cards.deletedAt),
+        ),
+      )
       .limit(1)
       .for('update');
 
@@ -66,7 +78,7 @@ export class CardsDao {
     const result = await db
       .update(cards)
       .set(patch)
-      .where(eq(cards.id, cardId))
+      .where(and(eq(cards.id, cardId), isNull(cards.deletedAt)))
       .returning();
 
     return result[0];
@@ -90,16 +102,38 @@ export class CardsDao {
     return this.db
       .select()
       .from(cards)
-      .where(and(eq(cards.deckId, deckId), eq(cards.userId, userId)))
+      .where(
+        and(
+          eq(cards.deckId, deckId),
+          eq(cards.userId, userId),
+          isNull(cards.deletedAt),
+        ),
+      )
       .orderBy(desc(cards.createdAt));
   }
 
-  async deleteCard(deckId: string, cardId: string, tx?: NodePgDatabase) {
+  /**
+   * Soft-deletes a card by stamping deleted_at. The row, its steps and its
+   * review history stay. Returns false if there was no such live card.
+   */
+  async softDeleteCard(
+    deckId: string,
+    cardId: string,
+    tx?: NodePgDatabase,
+    deletedAt: Date = new Date(),
+  ): Promise<boolean> {
     const db = tx ?? this.db;
     const result = await db
-      .delete(cards)
-      .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
-      .returning();
+      .update(cards)
+      .set({ deletedAt })
+      .where(
+        and(
+          eq(cards.id, cardId),
+          eq(cards.deckId, deckId),
+          isNull(cards.deletedAt),
+        ),
+      )
+      .returning({ id: cards.id });
 
     return result.length > 0;
   }

@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  ParseUUIDPipe,
   Body,
   UseGuards,
   HttpCode,
@@ -21,10 +22,7 @@ export class DecksController {
   constructor(private readonly decksService: DecksService) {}
 
   @Post()
-  async create(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: CreateDeckDto,
-  ) {
+  async create(@CurrentUser('sub') userId: string, @Body() dto: CreateDeckDto) {
     return this.decksService.create(userId, dto);
   }
 
@@ -36,7 +34,7 @@ export class DecksController {
   @Get(':id')
   async findOne(
     @CurrentUser('sub') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.decksService.findOne(userId, id);
   }
@@ -44,7 +42,7 @@ export class DecksController {
   @Patch(':id')
   async update(
     @CurrentUser('sub') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDeckDto,
   ) {
     return this.decksService.update(userId, id, dto);
@@ -54,7 +52,7 @@ export class DecksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser('sub') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.decksService.remove(userId, id);
   }

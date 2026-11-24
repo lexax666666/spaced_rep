@@ -2,8 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DecksDao } from './decks.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
+import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users } from '../db/schema';
+import { users, cards, decks } from '../db/schema';
 
 describe('DecksDao', () => {
   let dao: DecksDao;
@@ -221,7 +222,7 @@ describe('DecksDao', () => {
     });
   });
 
-  describe('deleteDeck', () => {
+  describe('softDeleteDeck', () => {
     it('should delete deck and return true', async () => {
       const created = await dao.createDeck(testUserId, {
         name: 'To Delete',
@@ -229,7 +230,7 @@ describe('DecksDao', () => {
         reviewCardsPerDay: 50,
       });
 
-      const result = await dao.deleteDeck(testUserId, created.id);
+      const result = await dao.softDeleteDeck(testUserId, created.id);
 
       expect(result).toBe(true);
 
@@ -238,8 +239,66 @@ describe('DecksDao', () => {
       expect(found).toBeNull();
     });
 
+    it('should keep the row, stamp deleted_at and hide it from listings', async () => {
+      const created = await dao.createDeck(testUserId, {
+        name: 'To Delete',
+        newCardsPerDay: 10,
+        reviewCardsPerDay: 50,
+      });
+
+      await dao.softDeleteDeck(testUserId, created.id);
+
+      const rows = await db
+        .select()
+        .from(decks)
+        .where(eq(decks.id, created.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].deletedAt).toBeInstanceOf(Date);
+      expect(await dao.getDecksForUser(testUserId)).toEqual([]);
+    });
+
+    it('should soft-delete the cards in the deck with the same timestamp', async () => {
+      const deck = await dao.createDeck(testUserId, {
+        name: 'With cards',
+        newCardsPerDay: 10,
+        reviewCardsPerDay: 50,
+      });
+      const other = await dao.createDeck(testUserId, {
+        name: 'Untouched',
+        newCardsPerDay: 10,
+        reviewCardsPerDay: 50,
+      });
+      await db.insert(cards).values([
+        { userId: testUserId, deckId: deck.id },
+        { userId: testUserId, deckId: other.id },
+      ]);
+      const deletedAt = new Date('2026-06-01T00:00:00.000Z');
+
+      await dao.softDeleteDeck(testUserId, deck.id, deletedAt);
+
+      const rows = await db.select().from(cards);
+      const byDeck = new Map(rows.map((row) => [row.deckId, row.deletedAt]));
+      expect(byDeck.get(deck.id)).toEqual(deletedAt);
+      expect(byDeck.get(other.id)).toBeNull();
+    });
+
+    it('should not let a deleted deck be updated', async () => {
+      const created = await dao.createDeck(testUserId, {
+        name: 'Gone',
+        newCardsPerDay: 10,
+        reviewCardsPerDay: 50,
+      });
+      await dao.softDeleteDeck(testUserId, created.id);
+
+      const result = await dao.updateDeck(testUserId, created.id, {
+        name: 'Back?',
+      });
+
+      expect(result).toBeNull();
+    });
+
     it('should return false when deck does not exist', async () => {
-      const result = await dao.deleteDeck(
+      const result = await dao.softDeleteDeck(
         testUserId,
         '00000000-0000-0000-0000-000000000000',
       );
@@ -259,7 +318,7 @@ describe('DecksDao', () => {
         reviewCardsPerDay: 50,
       });
 
-      const result = await dao.deleteDeck(otherUser[0].id, created.id);
+      const result = await dao.softDeleteDeck(otherUser[0].id, created.id);
 
       expect(result).toBe(false);
 

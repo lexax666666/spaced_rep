@@ -29,6 +29,13 @@
       "when": 1795500345936,
       "tag": "0003_multi_step_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795502095721,
+      "tag": "0004_soft_delete",
+      "breakpoints": true
     }
   ]
 }

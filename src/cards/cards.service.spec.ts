@@ -8,8 +8,15 @@ import { DecksDao } from '../repositories/decks.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, decks, cardTemplates, steps } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import {
+  users,
+  decks,
+  cards,
+  cardTemplates,
+  steps,
+  reviewLogs,
+} from '../db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
 
 describe('CardsService', () => {
   let service: CardsService;
@@ -229,6 +236,34 @@ describe('CardsService', () => {
           '00000000-0000-0000-0000-000000000000',
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('create - deleted decks', () => {
+    it('should not create a card in a deleted deck', async () => {
+      await db
+        .update(decks)
+        .set({ deletedAt: new Date() })
+        .where(eq(decks.id, testDeckId));
+
+      await expect(
+        service.create(testUserId, testDeckId, { steps: [] }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should never leave a live card in a deck deleted at the same time', async () => {
+      const decksDao = new DecksDao(db);
+
+      await Promise.allSettled([
+        service.create(testUserId, testDeckId, { steps: [] }),
+        decksDao.softDeleteDeck(testUserId, testDeckId),
+      ]);
+
+      const liveCards = await db
+        .select()
+        .from(cards)
+        .where(and(eq(cards.deckId, testDeckId), isNull(cards.deletedAt)));
+      expect(liveCards).toEqual([]);
     });
   });
 
@@ -455,7 +490,7 @@ describe('CardsService', () => {
   });
 
   describe('remove - steps', () => {
-    it("should delete the card's steps along with it", async () => {
+    it("should keep the card's steps so it can be restored", async () => {
       const created = await service.create(testUserId, testDeckId, {
         steps: [{ type: 'RICH_TEXT', label: 'Front', value: {} }],
       });
@@ -466,7 +501,48 @@ describe('CardsService', () => {
         .select()
         .from(steps)
         .where(eq(steps.cardId, created.id));
-      expect(remaining).toEqual([]);
+      expect(remaining).toHaveLength(1);
+    });
+
+    it('should delete a card that has review history', async () => {
+      const created = await service.create(testUserId, testDeckId, {
+        steps: [],
+      });
+      await db.insert(reviewLogs).values({
+        cardId: created.id,
+        userId: testUserId,
+        rating: 'GOOD',
+        state: 'NEW',
+        dueAt: new Date(),
+        stability: 0,
+        difficulty: 0,
+        elapsedDays: 0,
+        lastElapsedDays: 0,
+        scheduledDays: 0,
+        learningStep: 0,
+        reviewedAt: new Date(),
+      });
+
+      await service.remove(testUserId, testDeckId, created.id);
+
+      await expect(
+        service.findOne(testUserId, testDeckId, created.id),
+      ).rejects.toThrow(NotFoundException);
+      expect(await db.select().from(reviewLogs)).toHaveLength(1);
+    });
+
+    it('should not let a deleted card be edited or deleted again', async () => {
+      const created = await service.create(testUserId, testDeckId, {
+        steps: [],
+      });
+      await service.remove(testUserId, testDeckId, created.id);
+
+      await expect(
+        service.update(testUserId, testDeckId, created.id, { steps: [] }),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.remove(testUserId, testDeckId, created.id),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
