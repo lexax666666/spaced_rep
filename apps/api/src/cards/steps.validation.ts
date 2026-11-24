@@ -6,7 +6,7 @@ import {
   nonBlankText,
   parseWith,
 } from '../common/validation';
-import { CUSTOM_STEP_TYPE, STEP_TYPES } from '../db/schema';
+import { CUSTOM_STEP_TYPE, STEP_TYPES } from '@repo/db';
 import { SyncStepInput } from '../repositories/steps.dao';
 
 export const MAX_STEPS_PER_CARD = 50;

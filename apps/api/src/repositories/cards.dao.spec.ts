@@ -3,7 +3,7 @@ import { CardsDao } from './cards.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, decks, cards, cardTemplates } from '../db/schema';
+import { users, decks, cards, cardTemplates } from '@repo/db';
 import { eq } from 'drizzle-orm';
 
 describe('CardsDao', () => {

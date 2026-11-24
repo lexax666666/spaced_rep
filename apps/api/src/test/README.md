@@ -73,27 +73,27 @@ describe('YourDao', () => {
 
 ```bash
 # Run all tests (including DAO tests)
-npm test
+pnpm --filter api test
 
 # Run tests in watch mode
-npm run test:watch
+pnpm --filter api exec jest --watch
 
 # Run with coverage
-npm run test:cov
+pnpm --filter api exec jest --coverage
 
 # Run only DAO tests
-npm test -- decks.dao.spec.ts
+pnpm --filter api test decks.dao.spec.ts
 ```
 
 ## Requirements
 
 - Docker must be running (Testcontainers needs Docker to start PostgreSQL)
-- Migrations must be generated in `./drizzle` directory
+- Migrations live in `packages/db/drizzle`
 
 ## Troubleshooting
 
 **Error: "Cannot find module './drizzle'"**
-- Run `npm run db:generate` to generate migrations
+- Run `pnpm --filter @repo/db build` so the api can load `@repo/db`
 
 **Error: "Docker not running"**
 - Start Docker Desktop or Docker daemon

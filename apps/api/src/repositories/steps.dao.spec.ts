@@ -3,7 +3,7 @@ import { StepsDao } from './steps.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, decks, cards } from '../db/schema';
+import { users, decks, cards } from '@repo/db';
 
 describe('StepsDao', () => {
   let dao: StepsDao;

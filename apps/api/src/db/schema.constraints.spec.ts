@@ -11,7 +11,7 @@ import {
   reviewStepResults,
   steps,
   users,
-} from './schema';
+} from '@repo/db';
 
 // Rules the database itself must enforce, whatever the application code does.
 describe('schema constraints', () => {

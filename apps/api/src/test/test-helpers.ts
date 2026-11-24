@@ -35,7 +35,6 @@ export async function clearAllTables(db: NodePgDatabase) {
 
   // Truncate all tables
   for (const table of tables.rows) {
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     await db.execute(sql.raw(`TRUNCATE TABLE "${table.tablename}" CASCADE;`));
   }
 

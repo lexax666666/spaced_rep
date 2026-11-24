@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { InferSelectModel, and, asc, eq, isNull, or } from 'drizzle-orm';
-import { cardTemplates } from '../db/schema';
+import { cardTemplates } from '@repo/db';
 
 export type CardTemplate = InferSelectModel<typeof cardTemplates>;
 

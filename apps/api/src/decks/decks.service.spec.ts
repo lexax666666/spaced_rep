@@ -5,7 +5,7 @@ import { DecksDao } from '../repositories/decks.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users } from '../db/schema';
+import { users } from '@repo/db';
 
 describe('DecksService', () => {
   let service: DecksService;

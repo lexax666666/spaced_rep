@@ -17,7 +17,6 @@ class DbShutdown implements OnApplicationShutdown {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async onApplicationShutdown() {
-    console.log('Closing database connection...');
     await this.pool.end();
   }
 }

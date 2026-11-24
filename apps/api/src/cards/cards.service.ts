@@ -7,7 +7,7 @@ import {
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { InferSelectModel } from 'drizzle-orm';
-import { cards } from '../db/schema';
+import { cards } from '@repo/db';
 import { CardsDao } from '../repositories/cards.dao';
 import { Step, StepsDao } from '../repositories/steps.dao';
 import { DecksDao } from '../repositories/decks.dao';

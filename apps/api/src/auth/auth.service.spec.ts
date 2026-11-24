@@ -6,7 +6,7 @@ import { UsersDao } from '../repositories/users.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users } from '../db/schema';
+import { users } from '@repo/db';
 import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 

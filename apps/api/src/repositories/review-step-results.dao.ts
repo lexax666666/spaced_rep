@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { InferSelectModel } from 'drizzle-orm';
-import { reviewStepResults } from '../db/schema';
+import { reviewStepResults } from '@repo/db';
 
 export type ReviewStepResult = InferSelectModel<typeof reviewStepResults>;
 export type StepOutcome = ReviewStepResult['outcome'];

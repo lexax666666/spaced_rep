@@ -1,0 +1,33 @@
+{
+  "name": "@repo/db",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "generate": "drizzle-kit generate",
+    "lint": "eslint .",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.1",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "22.19.3",
+    "@types/pg": "8.16.0",
+    "drizzle-kit": "0.31.8",
+    "eslint": "10.15.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

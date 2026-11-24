@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { reviewLogs } from '../db/schema';
+import { reviewLogs } from '@repo/db';
 
 export interface ReviewLogInsert {
   cardId: string;

@@ -4,7 +4,7 @@ import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, cards, decks } from '../db/schema';
+import { users, cards, decks } from '@repo/db';
 
 describe('DecksDao', () => {
   let dao: DecksDao;

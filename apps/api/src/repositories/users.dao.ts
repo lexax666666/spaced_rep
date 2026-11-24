@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users } from '../db/schema';
+import { users } from '@repo/db';
 import { eq } from 'drizzle-orm';
 
 export interface CreateUserInput {

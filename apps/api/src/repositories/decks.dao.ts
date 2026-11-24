@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { cards, decks } from '../db/schema';
+import { cards, decks } from '@repo/db';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 
 export interface CreateDeckInput {

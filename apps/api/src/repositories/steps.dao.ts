@@ -9,7 +9,7 @@ import {
   inArray,
   notInArray,
 } from 'drizzle-orm';
-import { steps, StepType } from '../db/schema';
+import { steps, StepType } from '@repo/db';
 
 export type Step = InferSelectModel<typeof steps>;
 

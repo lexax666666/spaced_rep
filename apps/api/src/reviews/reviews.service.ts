@@ -14,7 +14,7 @@ import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { InferSelectModel } from 'drizzle-orm';
 import { Card, Grade, Rating, State } from 'ts-fsrs';
-import { cards } from '../db/schema';
+import { cards } from '@repo/db';
 import { isUuid } from '../common/validation';
 
 type DbCard = InferSelectModel<typeof cards>;

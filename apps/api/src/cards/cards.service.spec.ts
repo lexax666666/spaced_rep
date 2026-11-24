@@ -15,7 +15,7 @@ import {
   cardTemplates,
   steps,
   reviewLogs,
-} from '../db/schema';
+} from '@repo/db';
 import { and, eq, isNull } from 'drizzle-orm';
 
 describe('CardsService', () => {
