@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  ParseUUIDPipe,
   Body,
   UseGuards,
   HttpCode,
@@ -13,7 +14,7 @@ import {
 import { CardsService } from './cards.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateCardDto, UpdateCardDto } from './cards.dto';
+import type { CreateCardDto, UpdateCardDto } from './cards.dto';
 
 @Controller('decks/:deckId/cards')
 @UseGuards(JwtAuthGuard)
@@ -23,7 +24,7 @@ export class CardsController {
   @Post()
   async create(
     @CurrentUser('sub') userId: string,
-    @Param('deckId') deckId: string,
+    @Param('deckId', ParseUUIDPipe) deckId: string,
     @Body() dto: CreateCardDto,
   ) {
     return this.cardsService.create(userId, deckId, dto);
@@ -32,7 +33,7 @@ export class CardsController {
   @Get()
   async findAll(
     @CurrentUser('sub') userId: string,
-    @Param('deckId') deckId: string,
+    @Param('deckId', ParseUUIDPipe) deckId: string,
   ) {
     return this.cardsService.findAll(userId, deckId);
   }
@@ -40,8 +41,8 @@ export class CardsController {
   @Get(':id')
   async findOne(
     @CurrentUser('sub') userId: string,
-    @Param('deckId') deckId: string,
-    @Param('id') id: string,
+    @Param('deckId', ParseUUIDPipe) deckId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.cardsService.findOne(userId, deckId, id);
   }
@@ -49,8 +50,8 @@ export class CardsController {
   @Patch(':id')
   async update(
     @CurrentUser('sub') userId: string,
-    @Param('deckId') deckId: string,
-    @Param('id') id: string,
+    @Param('deckId', ParseUUIDPipe) deckId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCardDto,
   ) {
     return this.cardsService.update(userId, deckId, id, dto);
@@ -60,8 +61,8 @@ export class CardsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser('sub') userId: string,
-    @Param('deckId') deckId: string,
-    @Param('id') id: string,
+    @Param('deckId', ParseUUIDPipe) deckId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.cardsService.remove(userId, deckId, id);
   }

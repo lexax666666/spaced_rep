@@ -1,14 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { FsrsSchedulerService } from '../fsrs-scheduler/fsrs-scheduler.service';
 import { CardsDao } from '../repositories/cards.dao';
 import { DecksDao } from '../repositories/decks.dao';
 import { ReviewLogsDao } from '../repositories/review-logs.dao';
+import { StepsDao } from '../repositories/steps.dao';
+import { ReviewStepResultsDao } from '../repositories/review-step-results.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, decks, cards, reviewLogs } from '../db/schema';
+import {
+  users,
+  decks,
+  cards,
+  reviewLogs,
+  reviewStepResults,
+  steps,
+} from '../db/schema';
 import { Rating } from 'ts-fsrs';
 import { eq } from 'drizzle-orm';
 
@@ -57,7 +66,6 @@ describe('ReviewsService', () => {
       .values({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       })
       .returning();
     testCardId = cardResult[0].id;
@@ -70,6 +78,8 @@ describe('ReviewsService', () => {
         CardsDao,
         DecksDao,
         ReviewLogsDao,
+        StepsDao,
+        ReviewStepResultsDao,
         {
           provide: DRIZZLE_DB,
           useValue: db,
@@ -247,6 +257,17 @@ describe('ReviewsService', () => {
           Rating.Good,
           new Date(),
         ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException when the card was deleted', async () => {
+      await db
+        .update(cards)
+        .set({ deletedAt: new Date() })
+        .where(eq(cards.id, testCardId));
+
+      await expect(
+        service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -463,6 +484,181 @@ describe('ReviewsService', () => {
 
       // Second review should reflect the 4-day gap
       expect(logs[1].elapsedDays).toBeGreaterThan(0);
+    });
+  });
+
+  describe('reviewCard - Step Results', () => {
+    const insertSteps = async (cardId: string, labels: string[]) =>
+      db
+        .insert(steps)
+        .values(
+          labels.map((label, index) => ({
+            cardId,
+            position: index + 1,
+            type: 'RICH_TEXT' as const,
+            label,
+            value: { text: label },
+          })),
+        )
+        .returning();
+
+    it('should record every step as passed when none is missed', async () => {
+      const cardSteps = await insertSteps(testCardId, ['Meaning', 'Sentence']);
+
+      await service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good);
+
+      const results = await db.select().from(reviewStepResults);
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.stepId).sort()).toEqual(
+        cardSteps.map((step) => step.id).sort(),
+      );
+      expect(results.every((r) => r.outcome === 'PASSED')).toBe(true);
+    });
+
+    it('should record missed steps as failed and the rest as passed', async () => {
+      const [pronunciation, meaning] = await insertSteps(testCardId, [
+        'Pronunciation',
+        'Meaning',
+      ]);
+
+      await service.reviewCard(
+        testUserId,
+        testDeckId,
+        testCardId,
+        Rating.Again,
+        new Date(),
+        [pronunciation.id],
+      );
+
+      const results = await db.select().from(reviewStepResults);
+      const outcomeByStepId = new Map(
+        results.map((r) => [r.stepId, r.outcome]),
+      );
+      expect(outcomeByStepId.get(pronunciation.id)).toBe('FAILED');
+      expect(outcomeByStepId.get(meaning.id)).toBe('PASSED');
+    });
+
+    it('should link each result to the review log it belongs to', async () => {
+      await insertSteps(testCardId, ['Meaning']);
+
+      await service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good);
+
+      const logs = await db.select().from(reviewLogs);
+      const results = await db.select().from(reviewStepResults);
+      expect(logs).toHaveLength(1);
+      expect(results[0].reviewLogId).toBe(logs[0].id);
+    });
+
+    it('should not let missed steps change the schedule', async () => {
+      const [onlyStep] = await insertSteps(testCardId, ['Meaning']);
+      const reviewTime = new Date('2025-01-01T12:00:00Z');
+
+      const [otherCard] = await db
+        .insert(cards)
+        .values({ userId: testUserId, deckId: testDeckId })
+        .returning();
+
+      const withMiss = await service.reviewCard(
+        testUserId,
+        testDeckId,
+        testCardId,
+        Rating.Hard,
+        reviewTime,
+        [onlyStep.id],
+      );
+      const withoutMiss = await service.reviewCard(
+        testUserId,
+        testDeckId,
+        otherCard.id,
+        Rating.Hard,
+        reviewTime,
+      );
+
+      expect(withMiss?.nextReviewAt).toEqual(withoutMiss?.nextReviewAt);
+      expect(withMiss?.fsrsStability).toBe(withoutMiss?.fsrsStability);
+    });
+
+    it('should reject missed step ids that are not UUIDs', async () => {
+      await expect(
+        service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Again,
+          new Date(),
+          ['not-a-uuid'],
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject missed step ids that are not an array', async () => {
+      await expect(
+        service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Again,
+          new Date(),
+          5 as never,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should count a step once when its id is sent twice', async () => {
+      const [onlyStep] = await insertSteps(testCardId, ['Meaning']);
+
+      await service.reviewCard(
+        testUserId,
+        testDeckId,
+        testCardId,
+        Rating.Again,
+        new Date(),
+        [onlyStep.id, onlyStep.id],
+      );
+
+      const results = await db.select().from(reviewStepResults);
+      expect(results).toHaveLength(1);
+      expect(results[0].outcome).toBe('FAILED');
+    });
+
+    it('should record both reviews when two arrive at once', async () => {
+      await insertSteps(testCardId, ['Meaning']);
+
+      await Promise.all([
+        service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good),
+        service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good),
+      ]);
+
+      expect(await db.select().from(reviewLogs)).toHaveLength(2);
+      expect(await db.select().from(reviewStepResults)).toHaveLength(2);
+      const [card] = await db
+        .select()
+        .from(cards)
+        .where(eq(cards.id, testCardId));
+      expect(card.reviewCount).toBe(2);
+    });
+
+    it('should reject a missed step that belongs to another card', async () => {
+      const [otherCard] = await db
+        .insert(cards)
+        .values({ userId: testUserId, deckId: testDeckId })
+        .returning();
+      const [foreignStep] = await insertSteps(otherCard.id, ['Elsewhere']);
+
+      await expect(
+        service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Again,
+          new Date(),
+          [foreignStep.id],
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      // Nothing was written
+      expect(await db.select().from(reviewLogs)).toHaveLength(0);
+      expect(await db.select().from(reviewStepResults)).toHaveLength(0);
     });
   });
 });

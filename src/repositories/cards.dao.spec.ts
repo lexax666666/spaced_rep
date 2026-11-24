@@ -3,7 +3,8 @@ import { CardsDao } from './cards.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { getTestDatabase, clearAllTables } from '../test/test-helpers';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { users, decks } from '../db/schema';
+import { users, decks, cards, cardTemplates } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 describe('CardsDao', () => {
   let dao: CardsDao;
@@ -57,55 +58,49 @@ describe('CardsDao', () => {
   });
 
   describe('insertCard', () => {
-    it('should create a new card with VOCAB template type', async () => {
+    it('should create a new card without a template', async () => {
       const result = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       expect(result).toBeDefined();
       expect(result.id).toBeDefined();
       expect(result.userId).toBe(testUserId);
       expect(result.deckId).toBe(testDeckId);
-      expect(result.templateType).toBe('VOCAB');
+      expect(result.templateId).toBeNull();
       expect(result.fsrsState).toBe('NEW');
       expect(result.fsrsStability).toBe(0);
       expect(result.fsrsDifficulty).toBe(0);
       expect(result.reviewCount).toBe(0);
     });
 
-    it('should create a new card with CHESS template type', async () => {
+    it('should create a new card that references a template', async () => {
+      const [template] = await db
+        .insert(cardTemplates)
+        .values({ name: 'Vocabulary' })
+        .returning();
+
       const result = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'CHESS',
+        templateId: template.id,
       });
 
-      expect(result).toBeDefined();
-      expect(result.templateType).toBe('CHESS');
+      expect(result.templateId).toBe(template.id);
     });
 
-    it('should create a new card with STANDARD_FLASH_CARD template type', async () => {
-      const result = await dao.insertCard({
+    it('should store timestamps with a time zone', async () => {
+      const nextReviewAt = new Date('2026-03-01T12:00:00.000Z');
+      const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'STANDARD_FLASH_CARD',
       });
 
-      expect(result).toBeDefined();
-      expect(result.templateType).toBe('STANDARD_FLASH_CARD');
-    });
+      await dao.updateCardScheduling(created.id, { nextReviewAt });
 
-    it('should create a new card with CUSTOM template type', async () => {
-      const result = await dao.insertCard({
-        userId: testUserId,
-        deckId: testDeckId,
-        templateType: 'CUSTOM',
-      });
-
-      expect(result).toBeDefined();
-      expect(result.templateType).toBe('CUSTOM');
+      const result = await dao.getCardById(testDeckId, created.id);
+      expect(result?.nextReviewAt).toEqual(nextReviewAt);
     });
   });
 
@@ -114,7 +109,6 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       const result = await dao.getCardById(testDeckId, created.id);
@@ -123,7 +117,6 @@ describe('CardsDao', () => {
       expect(result?.id).toBe(created.id);
       expect(result?.deckId).toBe(testDeckId);
       expect(result?.userId).toBe(testUserId);
-      expect(result?.templateType).toBe('VOCAB');
     });
 
     it('should return null when card does not exist', async () => {
@@ -151,7 +144,6 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       // Try to get it with wrong deck ID
@@ -163,23 +155,21 @@ describe('CardsDao', () => {
 
   describe('getCardsByDeckId', () => {
     it('should return all cards for a deck ordered by createdAt desc', async () => {
-      await dao.insertCard({
+      const first = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
-      await dao.insertCard({
+      const second = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'CHESS',
       });
 
       const result = await dao.getCardsByDeckId(testDeckId, testUserId);
 
       expect(result).toHaveLength(2);
       // Ordered by createdAt desc, so the second inserted card comes first
-      expect(result[0].templateType).toBe('CHESS');
-      expect(result[1].templateType).toBe('VOCAB');
+      expect(result[0].id).toBe(second.id);
+      expect(result[1].id).toBe(first.id);
     });
 
     it('should return empty array when deck has no cards', async () => {
@@ -203,12 +193,10 @@ describe('CardsDao', () => {
       await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
       await dao.insertCard({
         userId: testUserId,
         deckId: otherDeck[0].id,
-        templateType: 'CHESS',
       });
 
       const result = await dao.getCardsByDeckId(testDeckId, testUserId);
@@ -218,15 +206,14 @@ describe('CardsDao', () => {
     });
   });
 
-  describe('deleteCard', () => {
+  describe('softDeleteCard', () => {
     it('should delete card and return true', async () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
-      const result = await dao.deleteCard(testDeckId, created.id);
+      const result = await dao.softDeleteCard(testDeckId, created.id);
 
       expect(result).toBe(true);
 
@@ -235,8 +222,50 @@ describe('CardsDao', () => {
       expect(found).toBeNull();
     });
 
+    it('should keep the row and stamp deleted_at', async () => {
+      const created = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+      });
+
+      await dao.softDeleteCard(testDeckId, created.id);
+
+      const rows = await db
+        .select()
+        .from(cards)
+        .where(eq(cards.id, created.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('should hide the card from deck listings', async () => {
+      const kept = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+      });
+      const deleted = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+      });
+
+      await dao.softDeleteCard(testDeckId, deleted.id);
+
+      const result = await dao.getCardsByDeckId(testDeckId, testUserId);
+      expect(result.map((card) => card.id)).toEqual([kept.id]);
+    });
+
+    it('should return false when the card is already deleted', async () => {
+      const created = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+      });
+      await dao.softDeleteCard(testDeckId, created.id);
+
+      expect(await dao.softDeleteCard(testDeckId, created.id)).toBe(false);
+    });
+
     it('should return false when card does not exist', async () => {
-      const result = await dao.deleteCard(
+      const result = await dao.softDeleteCard(
         testDeckId,
         '00000000-0000-0000-0000-000000000000',
       );
@@ -259,11 +288,10 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       // Try to delete with wrong deck ID
-      const result = await dao.deleteCard(otherDeck[0].id, created.id);
+      const result = await dao.softDeleteCard(otherDeck[0].id, created.id);
 
       expect(result).toBe(false);
 
@@ -273,12 +301,32 @@ describe('CardsDao', () => {
     });
   });
 
+  describe('updateCardScheduling - deleted cards', () => {
+    it('should leave a deleted card untouched', async () => {
+      const created = await dao.insertCard({
+        userId: testUserId,
+        deckId: testDeckId,
+      });
+      await dao.softDeleteCard(testDeckId, created.id);
+
+      const result = await dao.updateCardScheduling(created.id, {
+        reviewCount: 9,
+      });
+
+      expect(result).toBeUndefined();
+      const [row] = await db
+        .select()
+        .from(cards)
+        .where(eq(cards.id, created.id));
+      expect(row.reviewCount).toBe(0);
+    });
+  });
+
   describe('updateCardScheduling', () => {
     it('should update card scheduling fields', async () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       const now = new Date();
@@ -317,7 +365,6 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       // Only update a few fields
@@ -341,7 +388,6 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       // Move from NEW to LEARNING
@@ -375,7 +421,6 @@ describe('CardsDao', () => {
       const created = await dao.insertCard({
         userId: testUserId,
         deckId: testDeckId,
-        templateType: 'VOCAB',
       });
 
       const ratings: Array<'AGAIN' | 'HARD' | 'GOOD' | 'EASY'> = [

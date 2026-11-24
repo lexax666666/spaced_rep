@@ -6,7 +6,14 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersDao } from '../repositories/users.dao';
-import { RegisterDto, LoginDto, AuthResponse, JwtPayload } from './auth.interfaces';
+import {
+  RegisterDto,
+  LoginDto,
+  AuthResponse,
+  JwtPayload,
+} from './auth.interfaces';
+
+import { isUniqueViolation } from '../common/db-errors';
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -25,11 +32,20 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
 
-    const user = await this.usersDao.create({
-      email: dto.email,
-      passwordHash,
-      name: dto.name,
-    });
+    const user = await this.usersDao
+      .create({
+        email: dto.email,
+        passwordHash,
+        name: dto.name,
+      })
+      .catch((error: unknown) => {
+        // Two registrations of one email at the same moment both pass the
+        // check above; the unique constraint stops the second.
+        if (isUniqueViolation(error)) {
+          throw new ConflictException('Email already registered');
+        }
+        throw error;
+      });
 
     const payload: JwtPayload = { sub: user.id, email: user.email };
     const accessToken = this.jwtService.sign(payload);
