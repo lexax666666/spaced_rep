@@ -1,14 +1,20 @@
-export class SideDto {
-  type: 'RICH_TEXT' | 'VIDEO' | 'AUDIO' | 'CHESS_POSITION';
+import { StepType } from '../db/schema';
+
+export class StepDto {
+  // Only on update: the id of an existing step to keep. Omit to add a new step.
+  id?: string;
+  type: StepType;
   label: string;
-  value: unknown;
+  value: Record<string, unknown>;
 }
 
 export class CreateCardDto {
-  templateType: 'VOCAB' | 'CHESS' | 'STANDARD_FLASH_CARD' | 'CUSTOM';
-  sides: SideDto[];
+  // Omit for a card built by hand rather than from a template.
+  templateId?: string;
+  steps: StepDto[];
 }
 
 export class UpdateCardDto {
-  sides: SideDto[];
+  // The card's full list of steps, in order. Existing steps left out are deleted.
+  steps: StepDto[];
 }

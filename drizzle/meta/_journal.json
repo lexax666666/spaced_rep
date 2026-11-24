@@ -22,6 +22,13 @@
       "when": 1767295938349,
       "tag": "0002_military_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795500345936,
+      "tag": "0003_multi_step_cards",
+      "breakpoints": true
     }
   ]
 }

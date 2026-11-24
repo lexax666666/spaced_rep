@@ -7,7 +7,8 @@ import { eq, and, desc } from 'drizzle-orm';
 export interface InsertCardInput {
   userId: string;
   deckId: string;
-  templateType: 'VOCAB' | 'CHESS' | 'STANDARD_FLASH_CARD' | 'CUSTOM';
+  // Omitted for a card built by hand rather than from a template.
+  templateId?: string | null;
 }
 
 export interface CardSchedulingPatch {
@@ -37,6 +38,25 @@ export class CardsDao {
     return result[0] ?? null;
   }
 
+  /**
+   * Reads a card and locks its row until the transaction ends, so that card
+   * edits and reviews of the same card run one after another.
+   */
+  async getCardByIdForUpdate(
+    deckId: string,
+    cardId: string,
+    tx: NodePgDatabase,
+  ) {
+    const result = await tx
+      .select()
+      .from(cards)
+      .where(and(eq(cards.id, cardId), eq(cards.deckId, deckId)))
+      .limit(1)
+      .for('update');
+
+    return result[0] ?? null;
+  }
+
   async updateCardScheduling(
     cardId: string,
     patch: CardSchedulingPatch,
@@ -59,7 +79,7 @@ export class CardsDao {
       .values({
         userId: data.userId,
         deckId: data.deckId,
-        templateType: data.templateType,
+        templateId: data.templateId ?? null,
       })
       .returning();
 

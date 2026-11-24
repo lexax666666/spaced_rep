@@ -1,13 +1,21 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { FsrsSchedulerService } from '../fsrs-scheduler/fsrs-scheduler.service';
 import { CardsDao } from '../repositories/cards.dao';
 import { DecksDao } from '../repositories/decks.dao';
 import { ReviewLogsDao } from '../repositories/review-logs.dao';
+import { StepsDao } from '../repositories/steps.dao';
+import { ReviewStepResultsDao } from '../repositories/review-step-results.dao';
 import { DRIZZLE_DB } from '../db/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { InferSelectModel } from 'drizzle-orm';
 import { Card, Grade, Rating, State } from 'ts-fsrs';
 import { cards } from '../db/schema';
+import { isUuid } from '../common/validation';
 
 type DbCard = InferSelectModel<typeof cards>;
 
@@ -18,42 +26,71 @@ export class ReviewsService {
     private readonly cardsDao: CardsDao,
     private readonly decksDao: DecksDao,
     private readonly reviewLogsDao: ReviewLogsDao,
+    private readonly stepsDao: StepsDao,
+    private readonly reviewStepResultsDao: ReviewStepResultsDao,
     @Inject(DRIZZLE_DB) private readonly db: NodePgDatabase,
   ) {}
 
+  /**
+   * Rates a card once and reschedules it.
+   *
+   * `missedStepIds` names the steps the user got wrong. It never changes the
+   * schedule: it is only recorded, one result per step, so that a step missed
+   * again and again can later be split out, or one always passed be skipped.
+   */
   async reviewCard(
     userId: string,
     deckId: string,
     cardId: string,
     rating: Rating,
     reviewedAt: Date = new Date(),
+    missedStepIds: string[] = [],
   ) {
+    if (!Array.isArray(missedStepIds) || !missedStepIds.every(isUuid)) {
+      throw new BadRequestException('missedStepIds must be an array of UUIDs');
+    }
+
     // 1. Fetch deck to get FSRS config
     const deck = await this.decksDao.getDeckForUser(userId, deckId);
     if (!deck) {
       throw new NotFoundException('Deck not found');
     }
 
-    // 2. Fetch card from DB
-    const dbCard = await this.cardsDao.getCardById(deckId, cardId);
-    if (!dbCard) {
-      throw new NotFoundException('Card not found');
-    }
-
-    // 3. Convert DB card to FSRS Card type
-    const fsrsCard = this.convertDbCardToFsrsCard(dbCard, reviewedAt);
-
-    // 4. Call FSRS scheduler
-    const scheduleResult = this.fsrsScheduler.schedule(
-      { requestRetention: deck.fsrsRequestRetention },
-      fsrsCard,
-      rating as Grade,
-      reviewedAt,
-    );
-
-    // 5. Use transaction to update card and save log
     await this.db.transaction(async (tx) => {
-      // Update card with new scheduling data
+      // 2. Fetch the card and lock it, so a concurrent edit or review of the
+      // same card waits until this one is done.
+      const dbCard = await this.cardsDao.getCardByIdForUpdate(
+        deckId,
+        cardId,
+        tx,
+      );
+      if (!dbCard || dbCard.userId !== userId) {
+        throw new NotFoundException('Card not found');
+      }
+
+      // Every step of the card gets a result, so the missed ones must be its own.
+      const cardSteps = await this.stepsDao.getStepsForCard(cardId, tx);
+      const cardStepIds = new Set(cardSteps.map((step) => step.id));
+      const missed = new Set(missedStepIds);
+      const foreignStepId = [...missed].find((id) => !cardStepIds.has(id));
+      if (foreignStepId) {
+        throw new BadRequestException(
+          `Step ${foreignStepId} does not belong to this card`,
+        );
+      }
+
+      // 3. Convert DB card to FSRS Card type
+      const fsrsCard = this.convertDbCardToFsrsCard(dbCard, reviewedAt);
+
+      // 4. Call FSRS scheduler
+      const scheduleResult = this.fsrsScheduler.schedule(
+        { requestRetention: deck.fsrsRequestRetention },
+        fsrsCard,
+        rating as Grade,
+        reviewedAt,
+      );
+
+      // 5. Update card with new scheduling data
       await this.cardsDao.updateCardScheduling(
         cardId,
         {
@@ -70,7 +107,7 @@ export class ReviewsService {
       );
 
       // Insert review log
-      await this.reviewLogsDao.insert(
+      const reviewLog = await this.reviewLogsDao.insert(
         {
           cardId,
           userId,
@@ -85,6 +122,16 @@ export class ReviewsService {
           learningStep: dbCard.fsrsStep,
           reviewedAt,
         },
+        tx,
+      );
+
+      // Record how each step went
+      await this.reviewStepResultsDao.insertMany(
+        cardSteps.map((step) => ({
+          reviewLogId: reviewLog.id,
+          stepId: step.id,
+          outcome: missed.has(step.id) ? 'FAILED' : 'PASSED',
+        })),
         tx,
       );
     });

@@ -9,6 +9,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
 import { DecksModule } from './decks/decks.module';
 import { CardsModule } from './cards/cards.module';
+import { CardTemplatesModule } from './card-templates/card-templates.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CardsModule } from './cards/cards.module';
     AuthModule,
     DecksModule,
     CardsModule,
+    CardTemplatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,11 +4,29 @@ import { CardsDao } from './cards.dao';
 import { DecksDao } from './decks.dao';
 import { ReviewLogsDao } from './review-logs.dao';
 import { UsersDao } from './users.dao';
-import { SidesDao } from './sides.dao';
+import { StepsDao } from './steps.dao';
+import { ReviewStepResultsDao } from './review-step-results.dao';
+import { CardTemplatesDao } from './card-templates.dao';
 
 @Module({
   imports: [DatabaseModule],
-  providers: [CardsDao, DecksDao, ReviewLogsDao, UsersDao, SidesDao],
-  exports: [CardsDao, DecksDao, ReviewLogsDao, UsersDao, SidesDao],
+  providers: [
+    CardsDao,
+    DecksDao,
+    ReviewLogsDao,
+    UsersDao,
+    StepsDao,
+    ReviewStepResultsDao,
+    CardTemplatesDao,
+  ],
+  exports: [
+    CardsDao,
+    DecksDao,
+    ReviewLogsDao,
+    UsersDao,
+    StepsDao,
+    ReviewStepResultsDao,
+    CardTemplatesDao,
+  ],
 })
 export class RepositoriesModule {}
