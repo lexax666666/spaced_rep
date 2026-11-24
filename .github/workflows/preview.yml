@@ -1,0 +1,104 @@
+name: Preview
+# Each pull request that touches the api, web or shared packages gets its own
+# Neon branch and its own api and web apps on Fly. Everything is deleted when
+# the pull request closes.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    paths: ["apps/api/**", "apps/web/**", "packages/**", "pnpm-lock.yaml"]
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  FLY_ORG: ${{ vars.FLY_ORG || 'personal' }}
+  API_APP: spaced-rep-api-pr-${{ github.event.number }}
+  WEB_APP: spaced-rep-web-pr-${{ github.event.number }}
+  BRANCH: pr-${{ github.event.number }}
+jobs:
+  deploy:
+    # Forks cannot read the secrets, so they get no preview.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - name: Create the Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # 6.3.1
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: ${{ env.BRANCH }}
+          parent_branch: staging
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Run migrations on the branch
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: pnpm --filter @repo/db migrate
+      - name: Make the secret the two preview apps share
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "WEB_API_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Deploy the api preview
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          flyctl apps list --json | grep -q "\"$API_APP\"" || flyctl apps create "$API_APP" --org "$FLY_ORG"
+          flyctl secrets set --app "$API_APP" --stage \
+            DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" \
+            CORS_ORIGIN="https://$WEB_APP.fly.dev" \
+            WEB_API_SECRET="$WEB_API_SECRET"
+          flyctl deploy . --app "$API_APP" --config apps/api/fly.toml --remote-only --ha=false
+      - name: Deploy the web preview
+        run: |
+          flyctl apps list --json | grep -q "\"$WEB_APP\"" || flyctl apps create "$WEB_APP" --org "$FLY_ORG"
+          flyctl secrets set --app "$WEB_APP" --stage API_URL="https://$API_APP.fly.dev" WEB_API_SECRET="$WEB_API_SECRET"
+          flyctl deploy . --app "$WEB_APP" --config apps/web/fly.toml --remote-only --ha=false
+      - name: Smoke test
+        run: |
+          curl --fail --silent --retry 10 --retry-delay 6 --retry-all-errors "https://$API_APP.fly.dev/health/ready"
+          curl --fail --silent --output /dev/null --retry 10 --retry-delay 6 --retry-all-errors "https://$WEB_APP.fly.dev"
+      - name: Post the links on the pull request
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: preview
+          message: |
+            ## Preview
+
+            | | URL |
+            |---|---|
+            | Web | https://${{ env.WEB_APP }}.fly.dev |
+            | API | https://${{ env.API_APP }}.fly.dev/health |
+
+            Database: Neon branch `${{ env.BRANCH }}`.
+
+            _Built from ${{ github.event.pull_request.head.sha }}_
+
+  teardown:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - name: Delete the Fly apps
+        run: |
+          flyctl apps destroy "$API_APP" --yes || true
+          flyctl apps destroy "$WEB_APP" --yes || true
+      - name: Delete the Neon branch
+        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ${{ env.BRANCH }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Update the pull request comment
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: preview
+          message: Preview removed. Fly apps and Neon branch `${{ env.BRANCH }}` deleted.
