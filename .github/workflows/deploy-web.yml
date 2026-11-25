@@ -25,7 +25,7 @@ jobs:
     concurrency: { group: deploy-web-staging, cancel-in-progress: false }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       - name: Build the image once and push it
         run: |
           flyctl deploy . --app "$STAGING_APP" --config apps/web/fly.toml \
@@ -52,7 +52,7 @@ jobs:
       IMAGE_TAG: ${{ inputs.promote_image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       - name: Deploy the staging image to production
         env:
           WEB_API_SECRET: ${{ secrets.WEB_API_SECRET }}
