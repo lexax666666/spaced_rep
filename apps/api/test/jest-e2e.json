@@ -1,0 +1,18 @@
+{
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "globalSetup": "<rootDir>/../src/test/db-test-setup.ts",
+  "globalTeardown": "<rootDir>/../src/test/db-test-teardown.ts",
+  "setupFilesAfterEnv": [
+    "<rootDir>/../src/test/close-db-after-each-file.ts"
+  ]
+}

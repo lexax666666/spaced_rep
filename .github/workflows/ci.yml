@@ -1,0 +1,55 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }} # never cancel a main run that may be deploying
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      api: ${{ steps.changed.outputs.api }}
+      web: ${{ steps.changed.outputs.web }}
+    env:
+      # What --affected compares against: the PR's base branch, or the commit main was at before the push.
+      TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # --affected needs history
+          filter: blob:none
+      - uses: ./.github/actions/setup
+      - run: pnpm turbo run lint check-types test build --affected
+      - run: pnpm turbo boundaries
+      - name: What changed on main?
+        id: changed
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed() { git diff --quiet "$BEFORE" "$GITHUB_SHA" -- "$@" && echo false || echo true; }
+          {
+            echo "api=$(changed apps/api packages pnpm-lock.yaml)"
+            echo "web=$(changed apps/web packages/api packages/typescript-config pnpm-lock.yaml)"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy-api:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci.outputs.api == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-api.yml
+    secrets: inherit
+
+  deploy-web:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci.outputs.web == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-web.yml
+    secrets: inherit

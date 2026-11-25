@@ -1,0 +1,92 @@
+name: Deploy api
+# On main: build one image, migrate the staging database, deploy to staging.
+# To release: run the "Release" workflow. It calls this one with the image tag
+# (commit SHA) staging runs; the same image goes to production, nothing is rebuilt.
+on:
+  workflow_call:
+    inputs:
+      promote_image:
+        description: Image tag (full commit SHA) already on staging to release to production. Empty = build and deploy staging.
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch: # by hand: rebuild main and redeploy staging
+permissions:
+  contents: read
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+  NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+  NEONCTL: pnpm dlx neonctl@9.5.0
+  STAGING_APP: spaced-rep-api-staging
+  PRODUCTION_APP: spaced-rep-api
+jobs:
+  staging:
+    if: inputs.promote_image == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    concurrency: { group: deploy-api-staging, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - name: Build the image once and push it
+        run: |
+          flyctl deploy . --app "$STAGING_APP" --config apps/api/fly.toml \
+            --build-only --push --image-label "$GITHUB_SHA" --remote-only
+      - name: Migrate the staging database
+        run: |
+          DATABASE_URL="$($NEONCTL connection-string staging --project-id "$NEON_PROJECT_ID")"
+          export DATABASE_URL
+          pnpm --filter @repo/db migrate
+      - name: Deploy to staging
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WEB_API_SECRET: ${{ secrets.WEB_API_SECRET }}
+        run: |
+          flyctl secrets set --app "$STAGING_APP" --stage \
+            DATABASE_URL="$($NEONCTL connection-string staging --project-id "$NEON_PROJECT_ID" --pooled)" \
+            JWT_SECRET="$JWT_SECRET" \
+            CORS_ORIGIN="https://spaced-rep-web-staging.fly.dev" \
+            WEB_API_SECRET="$WEB_API_SECRET"
+          flyctl deploy --app "$STAGING_APP" --config apps/api/fly.toml \
+            --image "registry.fly.io/$STAGING_APP:$GITHUB_SHA"
+      - name: Health check (the api is up and reaches its database)
+        run: curl --fail --silent --retry 10 --retry-delay 6 --retry-all-errors "https://$STAGING_APP.fly.dev/health/ready"
+      - name: How to release
+        run: echo "Staging now runs \`${GITHUB_SHA::7}\`. To release it, run the **Release** workflow." >> "$GITHUB_STEP_SUMMARY"
+
+  production:
+    if: inputs.promote_image != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency: { group: deploy-api-production, cancel-in-progress: false }
+    env:
+      IMAGE_TAG: ${{ inputs.promote_image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.promote_image }} # migrations must match the image being released
+      - uses: ./.github/actions/setup
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - name: Migrate the production database
+        run: |
+          DATABASE_URL="$($NEONCTL connection-string main --project-id "$NEON_PROJECT_ID")"
+          export DATABASE_URL
+          pnpm --filter @repo/db migrate
+      - name: Deploy the staging image to production
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WEB_API_SECRET: ${{ secrets.WEB_API_SECRET }}
+        run: |
+          flyctl secrets set --app "$PRODUCTION_APP" --stage \
+            DATABASE_URL="$($NEONCTL connection-string main --project-id "$NEON_PROJECT_ID" --pooled)" \
+            JWT_SECRET="$JWT_SECRET" \
+            CORS_ORIGIN="https://spaced-rep-web.fly.dev" \
+            WEB_API_SECRET="$WEB_API_SECRET"
+          flyctl deploy --app "$PRODUCTION_APP" --config apps/api/fly.toml \
+            --image "registry.fly.io/$STAGING_APP:$IMAGE_TAG"
+      - name: Health check (the api is up and reaches its database)
+        run: curl --fail --silent --retry 10 --retry-delay 6 --retry-all-errors "https://$PRODUCTION_APP.fly.dev/health/ready"
