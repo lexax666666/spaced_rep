@@ -9,14 +9,17 @@ import {
   inArray,
   notInArray,
 } from 'drizzle-orm';
-import { steps, StepType } from '@repo/db';
+import { steps, AnswerType, StepType } from '@repo/db';
 
 export type Step = InferSelectModel<typeof steps>;
 
 export interface StepContent {
-  type: StepType;
   label: string;
-  value: Record<string, unknown>;
+  questionType: StepType;
+  questionValue: Record<string, unknown>;
+  // Leave both out for a note: a step that asks nothing.
+  answerType?: AnswerType | null;
+  answerValue?: Record<string, unknown> | null;
   customStepTypeVersionId?: string | null;
 }
 
@@ -129,9 +132,12 @@ export class StepsDao {
       const updated = await tx
         .update(steps)
         .set({
-          type: content.type,
           label: content.label,
-          value: content.value,
+          questionType: content.questionType,
+          questionValue: content.questionValue,
+          // A kept step sent without an answer loses the one it had.
+          answerType: content.answerType ?? null,
+          answerValue: content.answerValue ?? null,
           customStepTypeVersionId: content.customStepTypeVersionId ?? null,
           position,
           updatedAt: now,

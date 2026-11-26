@@ -72,8 +72,18 @@ describe('CardsService', () => {
     it('should create a card with steps and return card+steps', async () => {
       const result = await service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'RICH_TEXT', label: 'Front', value: { text: 'Hello' } },
-          { type: 'RICH_TEXT', label: 'Back', value: { text: 'World' } },
+          {
+            label: 'Meaning',
+            questionType: 'AUDIO',
+            questionValue: { url: 'madrugada.mp3' },
+            answerType: 'RICH_TEXT',
+            answerValue: { text: 'The hours before dawn' },
+          },
+          {
+            label: 'Hook',
+            questionType: 'RICH_TEXT',
+            questionValue: { text: 'Same root as madrugar' },
+          },
         ],
       });
 
@@ -83,17 +93,29 @@ describe('CardsService', () => {
       expect(result.deckId).toBe(testDeckId);
       expect(result.templateId).toBeNull();
       expect(result.steps).toHaveLength(2);
-      expect(result.steps[0].label).toBe('Front');
-      expect(result.steps[0].value).toEqual({ text: 'Hello' });
-      expect(result.steps[1].label).toBe('Back');
-      expect(result.steps[1].value).toEqual({ text: 'World' });
+      // The question and the answer may be different kinds of content.
+      expect(result.steps[0].label).toBe('Meaning');
+      expect(result.steps[0].questionType).toBe('AUDIO');
+      expect(result.steps[0].questionValue).toEqual({ url: 'madrugada.mp3' });
+      expect(result.steps[0].answerType).toBe('RICH_TEXT');
+      expect(result.steps[0].answerValue).toEqual({
+        text: 'The hours before dawn',
+      });
+      // A step sent without an answer is stored as a note.
+      expect(result.steps[1].label).toBe('Hook');
+      expect(result.steps[1].answerType).toBeNull();
+      expect(result.steps[1].answerValue).toBeNull();
     });
 
     it('should throw NotFoundException when deck does not exist', async () => {
       await expect(
         service.create(testUserId, '00000000-0000-0000-0000-000000000000', {
           steps: [
-            { type: 'RICH_TEXT', label: 'Front', value: { text: 'Hello' } },
+            {
+              questionType: 'RICH_TEXT',
+              label: 'Front',
+              questionValue: { text: 'Hello' },
+            },
           ],
         }),
       ).rejects.toThrow(NotFoundException);
@@ -104,15 +126,21 @@ describe('CardsService', () => {
     it('should return all cards with their steps', async () => {
       await service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'RICH_TEXT', label: 'Front', value: { text: 'Card 1' } },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Front',
+            questionValue: { text: 'Card 1' },
+          },
         ],
       });
       await service.create(testUserId, testDeckId, {
         steps: [
           {
-            type: 'CHESS_POSITION',
+            questionType: 'CHESS_POSITION',
             label: 'Position',
-            value: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' },
+            questionValue: {
+              fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR',
+            },
           },
         ],
       });
@@ -144,8 +172,16 @@ describe('CardsService', () => {
     it('should return card with its steps', async () => {
       const created = await service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'RICH_TEXT', label: 'Front', value: { text: 'Question' } },
-          { type: 'RICH_TEXT', label: 'Back', value: { text: 'Answer' } },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Front',
+            questionValue: { text: 'Question' },
+          },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Back',
+            questionValue: { text: 'Answer' },
+          },
         ],
       });
 
@@ -169,20 +205,26 @@ describe('CardsService', () => {
   describe('update', () => {
     it('should replace steps and return updated card', async () => {
       const created = await service.create(testUserId, testDeckId, {
-        steps: [{ type: 'RICH_TEXT', label: 'Front', value: { text: 'Old' } }],
+        steps: [
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Front',
+            questionValue: { text: 'Old' },
+          },
+        ],
       });
 
       const result = await service.update(testUserId, testDeckId, created.id, {
         steps: [
           {
-            type: 'RICH_TEXT',
+            questionType: 'RICH_TEXT',
             label: 'New Front',
-            value: { text: 'Updated' },
+            questionValue: { text: 'Updated' },
           },
           {
-            type: 'VIDEO',
+            questionType: 'VIDEO',
             label: 'Video',
-            value: { url: 'https://example.com/video.mp4' },
+            questionValue: { url: 'https://example.com/video.mp4' },
           },
         ],
       });
@@ -190,8 +232,8 @@ describe('CardsService', () => {
       expect(result.id).toBe(created.id);
       expect(result.steps).toHaveLength(2);
       expect(result.steps[0].label).toBe('New Front');
-      expect(result.steps[0].value).toEqual({ text: 'Updated' });
-      expect(result.steps[1].type).toBe('VIDEO');
+      expect(result.steps[0].questionValue).toEqual({ text: 'Updated' });
+      expect(result.steps[1].questionType).toBe('VIDEO');
     });
 
     it('should throw NotFoundException when card does not exist', async () => {
@@ -202,7 +244,11 @@ describe('CardsService', () => {
           '00000000-0000-0000-0000-000000000000',
           {
             steps: [
-              { type: 'RICH_TEXT', label: 'Front', value: { text: 'Nope' } },
+              {
+                questionType: 'RICH_TEXT',
+                label: 'Front',
+                questionValue: { text: 'Nope' },
+              },
             ],
           },
         ),
@@ -214,7 +260,11 @@ describe('CardsService', () => {
     it('should delete card and its steps', async () => {
       const created = await service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'RICH_TEXT', label: 'Front', value: { text: 'Delete me' } },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Front',
+            questionValue: { text: 'Delete me' },
+          },
         ],
       });
 
@@ -332,37 +382,84 @@ describe('CardsService', () => {
     it('should number steps from 1 in the order given', async () => {
       const result = await service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'AUDIO', label: 'Pronunciation', value: { url: 'a.mp3' } },
-          { type: 'RICH_TEXT', label: 'Meaning', value: { text: 'brief' } },
-          { type: 'ANIMATION', label: 'Watch', value: { url: 'a.lottie' } },
+          {
+            questionType: 'AUDIO',
+            label: 'Pronunciation',
+            questionValue: { url: 'a.mp3' },
+          },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Meaning',
+            questionValue: { text: 'brief' },
+          },
+          {
+            questionType: 'ANIMATION',
+            label: 'Watch',
+            questionValue: { url: 'a.lottie' },
+          },
         ],
       });
 
       expect(result.steps.map((step) => step.position)).toEqual([1, 2, 3]);
-      expect(result.steps[2].type).toBe('ANIMATION');
+      expect(result.steps[2].questionType).toBe('ANIMATION');
     });
 
-    it('should reject a step whose value is not a JSON object', async () => {
+    it('should reject a question value that is not a JSON object', async () => {
       await expect(
-        createWith({ type: 'RICH_TEXT', label: 'Front', value: 'text' }),
+        createWith({
+          questionType: 'RICH_TEXT',
+          label: 'Front',
+          questionValue: 'text',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should reject an unknown step type', async () => {
+    it('should reject an unknown question type', async () => {
       await expect(
-        createWith({ type: 'HOLOGRAM', label: 'Front', value: {} }),
+        createWith({
+          questionType: 'HOLOGRAM',
+          label: 'Front',
+          questionValue: {},
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject a blank label', async () => {
       await expect(
-        createWith({ type: 'RICH_TEXT', label: '  ', value: {} }),
+        createWith({
+          questionType: 'RICH_TEXT',
+          label: '  ',
+          questionValue: {},
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject CUSTOM steps until step types can be created', async () => {
       await expect(
-        createWith({ type: 'CUSTOM', label: 'Recorder', value: {} }),
+        createWith({
+          questionType: 'CUSTOM',
+          label: 'Recorder',
+          questionValue: {},
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject an answer type sent without an answer value', async () => {
+      await expect(
+        createWith({
+          label: 'Gender',
+          questionType: 'RICH_TEXT',
+          questionValue: {},
+          answerType: 'RICH_TEXT',
+        }),
+      ).rejects.toThrow(
+        'steps[0]: answerType and answerValue must be sent together',
+      );
+    });
+
+    it('should reject a step sent as one face with type and value', async () => {
+      await expect(
+        createWith({ type: 'RICH_TEXT', label: 'Front', value: {} }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -374,7 +471,11 @@ describe('CardsService', () => {
 
     it('should not create the card when a step is invalid', async () => {
       await expect(
-        createWith({ type: 'RICH_TEXT', label: 'Front', value: [] }),
+        createWith({
+          questionType: 'RICH_TEXT',
+          label: 'Front',
+          questionValue: [],
+        }),
       ).rejects.toThrow(BadRequestException);
 
       expect(await service.findAll(testUserId, testDeckId)).toEqual([]);
@@ -385,8 +486,16 @@ describe('CardsService', () => {
     const createTwoStepCard = () =>
       service.create(testUserId, testDeckId, {
         steps: [
-          { type: 'RICH_TEXT', label: 'First', value: { text: '1' } },
-          { type: 'RICH_TEXT', label: 'Second', value: { text: '2' } },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'First',
+            questionValue: { text: '1' },
+          },
+          {
+            questionType: 'RICH_TEXT',
+            label: 'Second',
+            questionValue: { text: '2' },
+          },
         ],
       });
 
@@ -396,8 +505,18 @@ describe('CardsService', () => {
 
       const result = await service.update(testUserId, testDeckId, created.id, {
         steps: [
-          { id: first.id, type: 'RICH_TEXT', label: 'Renamed', value: {} },
-          { id: second.id, type: 'RICH_TEXT', label: 'Second', value: {} },
+          {
+            id: first.id,
+            questionType: 'RICH_TEXT',
+            label: 'Renamed',
+            questionValue: {},
+          },
+          {
+            id: second.id,
+            questionType: 'RICH_TEXT',
+            label: 'Second',
+            questionValue: {},
+          },
         ],
       });
 
@@ -408,14 +527,50 @@ describe('CardsService', () => {
       expect(result.steps[0].label).toBe('Renamed');
     });
 
+    it('should remove the answer of a step sent back without one', async () => {
+      const question = {
+        label: 'Gender',
+        questionType: 'RICH_TEXT' as const,
+        questionValue: { text: 'el or la?' },
+      };
+      const created = await service.create(testUserId, testDeckId, {
+        steps: [
+          {
+            ...question,
+            answerType: 'RICH_TEXT',
+            answerValue: { text: 'la madrugada' },
+          },
+        ],
+      });
+      const [step] = created.steps;
+
+      const result = await service.update(testUserId, testDeckId, created.id, {
+        steps: [{ id: step.id, ...question }],
+      });
+
+      expect(result.steps[0].id).toBe(step.id);
+      expect(result.steps[0].answerType).toBeNull();
+      expect(result.steps[0].answerValue).toBeNull();
+    });
+
     it('should reorder steps without changing their ids', async () => {
       const created = await createTwoStepCard();
       const [first, second] = created.steps;
 
       const result = await service.update(testUserId, testDeckId, created.id, {
         steps: [
-          { id: second.id, type: 'RICH_TEXT', label: 'Second', value: {} },
-          { id: first.id, type: 'RICH_TEXT', label: 'First', value: {} },
+          {
+            id: second.id,
+            questionType: 'RICH_TEXT',
+            label: 'Second',
+            questionValue: {},
+          },
+          {
+            id: first.id,
+            questionType: 'RICH_TEXT',
+            label: 'First',
+            questionValue: {},
+          },
         ],
       });
 
@@ -434,9 +589,9 @@ describe('CardsService', () => {
           steps: [
             {
               id: other.steps[0].id,
-              type: 'RICH_TEXT',
+              questionType: 'RICH_TEXT',
               label: 'Stolen',
-              value: {},
+              questionValue: {},
             },
           ],
         }),
@@ -454,9 +609,9 @@ describe('CardsService', () => {
       const created = await createTwoStepCard();
       const step = {
         id: created.steps[0].id,
-        type: 'RICH_TEXT' as const,
+        questionType: 'RICH_TEXT' as const,
         label: 'Twice',
-        value: {},
+        questionValue: {},
       };
 
       await expect(
@@ -470,13 +625,23 @@ describe('CardsService', () => {
   describe('update - concurrency', () => {
     it('should apply two simultaneous edits one after the other', async () => {
       const created = await service.create(testUserId, testDeckId, {
-        steps: [{ type: 'RICH_TEXT', label: 'Original', value: {} }],
+        steps: [
+          { questionType: 'RICH_TEXT', label: 'Original', questionValue: {} },
+        ],
       });
       const replaceWith = (prefix: string) =>
         service.update(testUserId, testDeckId, created.id, {
           steps: [
-            { type: 'RICH_TEXT', label: `${prefix} 1`, value: {} },
-            { type: 'RICH_TEXT', label: `${prefix} 2`, value: {} },
+            {
+              questionType: 'RICH_TEXT',
+              label: `${prefix} 1`,
+              questionValue: {},
+            },
+            {
+              questionType: 'RICH_TEXT',
+              label: `${prefix} 2`,
+              questionValue: {},
+            },
           ],
         });
 
@@ -492,7 +657,9 @@ describe('CardsService', () => {
   describe('remove - steps', () => {
     it("should keep the card's steps so it can be restored", async () => {
       const created = await service.create(testUserId, testDeckId, {
-        steps: [{ type: 'RICH_TEXT', label: 'Front', value: {} }],
+        steps: [
+          { questionType: 'RICH_TEXT', label: 'Front', questionValue: {} },
+        ],
       });
 
       await service.remove(testUserId, testDeckId, created.id);

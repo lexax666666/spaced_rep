@@ -33,7 +33,13 @@ describe('CardTemplatesDao', () => {
       .values([
         {
           name: 'Vocabulary',
-          stepDefinitions: [{ type: 'RICH_TEXT', label: 'Meaning' }],
+          stepDefinitions: [
+            {
+              label: 'Meaning',
+              questionType: 'AUDIO',
+              answerType: 'RICH_TEXT',
+            },
+          ],
         },
         { name: 'Mine', userId },
         { name: 'Theirs', userId: otherUserId },
@@ -62,7 +68,7 @@ describe('CardTemplatesDao', () => {
       const result = await dao.getTemplateForUser(userId, builtInId);
 
       expect(result?.stepDefinitions).toEqual([
-        { type: 'RICH_TEXT', label: 'Meaning' },
+        { label: 'Meaning', questionType: 'AUDIO', answerType: 'RICH_TEXT' },
       ]);
     });
   });

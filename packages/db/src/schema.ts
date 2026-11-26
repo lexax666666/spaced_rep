@@ -21,18 +21,22 @@ const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
 const quotedList = (values: readonly string[]) =>
   sql.raw(values.map((value) => `'${value}'`).join(', '));
 
-// Step types are text + CHECK rather than an enum because the list keeps growing.
-export const STEP_TYPES = [
+// Kinds of content are text + CHECK rather than an enum because the list keeps growing.
+export const BUILT_IN_STEP_TYPES = [
   'RICH_TEXT',
   'VIDEO',
   'AUDIO',
   'CHESS_POSITION',
   'ANIMATION',
-  'CUSTOM',
 ] as const;
+export const CUSTOM_STEP_TYPE = 'CUSTOM';
+
+// What a step's question can be.
+export const STEP_TYPES = [...BUILT_IN_STEP_TYPES, CUSTOM_STEP_TYPE] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
-export const CUSTOM_STEP_TYPE: StepType = 'CUSTOM';
+// What a step's answer can be. Custom answers wait until custom step types are built.
+export type AnswerType = (typeof BUILT_IN_STEP_TYPES)[number];
 
 // Upper bound, in characters, for each of a custom step version's html, css and js.
 export const MAX_STEP_CODE_LENGTH = 100_000;
@@ -219,7 +223,7 @@ export const customStepTypeVersions = pgTable(
     html: text('html').notNull().default(''),
     css: text('css').notNull().default(''),
     js: text('js').notNull().default(''),
-    // JSON Schema describing the data each step must supply in steps.value.
+    // JSON Schema describing the data each step must supply in steps.question_value.
     fieldSchema: jsonb('field_schema')
       .notNull()
       .default(sql`'{}'::jsonb`),
@@ -253,7 +257,8 @@ export const customStepTypeVersions = pgTable(
   ],
 );
 
-// The ordered parts of a card (formerly "sides").
+// The ordered parts of a card. A step asks one thing: it holds a question and
+// the answer to it. A step without an answer is a note, with nothing to recall.
 export const steps = pgTable(
   'steps',
   {
@@ -265,11 +270,15 @@ export const steps = pgTable(
       .references(() => cards.id, { onDelete: 'cascade' }),
     // 1-based order within the card.
     position: integer('position').notNull(),
-    type: text('type').$type<StepType>().notNull(),
-    // Set only for CUSTOM steps: the exact version of the code that renders the step.
-    customStepTypeVersionId: uuid('custom_step_type_version_id'),
     label: text('label').notNull(),
-    value: jsonb('value').notNull(),
+    // The question and the answer may be different kinds of content.
+    questionType: text('question_type').$type<StepType>().notNull(),
+    questionValue: jsonb('question_value').notNull(),
+    // Both empty for a note.
+    answerType: text('answer_type').$type<AnswerType>(),
+    answerValue: jsonb('answer_value'),
+    // Set only for a CUSTOM question: the exact version of the code that renders it.
+    customStepTypeVersionId: uuid('custom_step_type_version_id'),
     createdAt: timestamptz('created_at').defaultNow().notNull(),
     updatedAt: timestamptz('updated_at').defaultNow().notNull(),
   },
@@ -289,16 +298,29 @@ export const steps = pgTable(
       .where(sql`${table.customStepTypeVersionId} is not null`),
     check('steps_position_positive', sql`${table.position} >= 1`),
     check(
-      'steps_type_valid',
-      sql`${table.type} in (${quotedList(STEP_TYPES)})`,
+      'steps_question_type_valid',
+      sql`${table.questionType} in (${quotedList(STEP_TYPES)})`,
     ),
     check(
       'steps_custom_version_matches_type',
-      sql`(${table.type} = 'CUSTOM') = (${table.customStepTypeVersionId} is not null)`,
+      sql`(${table.questionType} = 'CUSTOM') = (${table.customStepTypeVersionId} is not null)`,
     ),
     check(
-      'steps_value_is_object',
-      sql`jsonb_typeof(${table.value}) = 'object'`,
+      'steps_question_value_is_object',
+      sql`jsonb_typeof(${table.questionValue}) = 'object'`,
+    ),
+    // The three answer checks pass when the answer columns are empty.
+    check(
+      'steps_answer_type_valid',
+      sql`${table.answerType} in (${quotedList(BUILT_IN_STEP_TYPES)})`,
+    ),
+    check(
+      'steps_answer_value_is_object',
+      sql`jsonb_typeof(${table.answerValue}) = 'object'`,
+    ),
+    check(
+      'steps_answer_is_whole',
+      sql`(${table.answerType} is null) = (${table.answerValue} is null)`,
     ),
   ],
 );
