@@ -92,46 +92,49 @@ describe('ReviewsService', () => {
 
   describe('reviewCard - Happy Path', () => {
     // Already failing on main before the monorepo move. Marked so CI can pass; remove `.failing` once the scheduler behaviour is decided.
-    it.failing('should successfully review a new card with Rating.Good', async () => {
-      const reviewTimeString = '2025-01-01T12:00:00-05:00';
-      const reviewTime = new Date(reviewTimeString);
+    it.failing(
+      'should successfully review a new card with Rating.Good',
+      async () => {
+        const reviewTimeString = '2025-01-01T12:00:00-05:00';
+        const reviewTime = new Date(reviewTimeString);
 
-      const result = await service.reviewCard(
-        testUserId,
-        testDeckId,
-        testCardId,
-        Rating.Good,
-        reviewTime,
-      );
+        const result = await service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Good,
+          reviewTime,
+        );
 
-      // Verify returned card
-      expect(result).toBeDefined();
-      expect(result?.id).toBe(testCardId);
-      expect(result?.lastReviewedAt).toEqual(reviewTime);
-      expect(result?.lastRating).toBe('GOOD');
-      expect(result?.reviewCount).toBe(1);
+        // Verify returned card
+        expect(result).toBeDefined();
+        expect(result?.id).toBe(testCardId);
+        expect(result?.lastReviewedAt).toEqual(reviewTime);
+        expect(result?.lastRating).toBe('GOOD');
+        expect(result?.reviewCount).toBe(1);
 
-      // FSRS should have calculated new stability and difficulty
-      expect(result?.fsrsStability).toBeGreaterThan(0);
-      expect(result?.fsrsDifficulty).toBeGreaterThan(0);
-      expect(result?.nextReviewAt).toBeDefined();
+        // FSRS should have calculated new stability and difficulty
+        expect(result?.fsrsStability).toBeGreaterThan(0);
+        expect(result?.fsrsDifficulty).toBeGreaterThan(0);
+        expect(result?.nextReviewAt).toBeDefined();
 
-      // Verify state transition (NEW -> LEARNING or REVIEW depending on FSRS)
-      expect(['LEARNING', 'REVIEW']).toContain(result?.fsrsState);
+        // Verify state transition (NEW -> LEARNING or REVIEW depending on FSRS)
+        expect(['LEARNING', 'REVIEW']).toContain(result?.fsrsState);
 
-      // Verify review log was inserted
-      const logs = await db
-        .select()
-        .from(reviewLogs)
-        .where(eq(reviewLogs.cardId, testCardId));
+        // Verify review log was inserted
+        const logs = await db
+          .select()
+          .from(reviewLogs)
+          .where(eq(reviewLogs.cardId, testCardId));
 
-      expect(logs).toHaveLength(1);
-      expect(logs[0].userId).toBe(testUserId);
-      expect(logs[0].rating).toBe('GOOD');
-      expect(logs[0].reviewedAt).toEqual(reviewTime);
-      expect(logs[0].stability).toBeGreaterThan(0);
-      expect(logs[0].difficulty).toBeGreaterThan(0);
-    });
+        expect(logs).toHaveLength(1);
+        expect(logs[0].userId).toBe(testUserId);
+        expect(logs[0].rating).toBe('GOOD');
+        expect(logs[0].reviewedAt).toEqual(reviewTime);
+        expect(logs[0].stability).toBeGreaterThan(0);
+        expect(logs[0].difficulty).toBeGreaterThan(0);
+      },
+    );
 
     it('should successfully review a new card with Rating.Again', async () => {
       const reviewTimeString = '2025-01-01T12:00:00-05:00';
@@ -488,6 +491,7 @@ describe('ReviewsService', () => {
   });
 
   describe('reviewCard - Step Results', () => {
+    // Steps that ask something: each has a question and an answer.
     const insertSteps = async (cardId: string, labels: string[]) =>
       db
         .insert(steps)
@@ -495,12 +499,29 @@ describe('ReviewsService', () => {
           labels.map((label, index) => ({
             cardId,
             position: index + 1,
-            type: 'RICH_TEXT' as const,
             label,
-            value: { text: label },
+            questionType: 'RICH_TEXT' as const,
+            questionValue: { text: label },
+            answerType: 'RICH_TEXT' as const,
+            answerValue: { text: `${label} answer` },
           })),
         )
         .returning();
+
+    // A step with no answer: nothing to recall, so nothing to pass or miss.
+    const insertNote = async (cardId: string, position: number) => {
+      const [note] = await db
+        .insert(steps)
+        .values({
+          cardId,
+          position,
+          label: 'Hook',
+          questionType: 'RICH_TEXT',
+          questionValue: { text: 'Same root as madrugar' },
+        })
+        .returning();
+      return note;
+    };
 
     it('should record every step as passed when none is missed', async () => {
       const cardSteps = await insertSteps(testCardId, ['Meaning', 'Sentence']);
@@ -536,6 +557,68 @@ describe('ReviewsService', () => {
       );
       expect(outcomeByStepId.get(pronunciation.id)).toBe('FAILED');
       expect(outcomeByStepId.get(meaning.id)).toBe('PASSED');
+    });
+
+    it('should record no result for a step without an answer', async () => {
+      const [meaning] = await insertSteps(testCardId, ['Meaning']);
+      await insertNote(testCardId, 2);
+
+      await service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good);
+
+      const results = await db.select().from(reviewStepResults);
+      expect(results.map((r) => r.stepId)).toEqual([meaning.id]);
+    });
+
+    it('should still rate a card whose steps are all notes', async () => {
+      await insertNote(testCardId, 1);
+
+      await service.reviewCard(testUserId, testDeckId, testCardId, Rating.Good);
+
+      expect(await db.select().from(reviewLogs)).toHaveLength(1);
+      expect(await db.select().from(reviewStepResults)).toHaveLength(0);
+    });
+
+    it('should reject a missed step that has no answer', async () => {
+      const note = await insertNote(testCardId, 1);
+
+      await expect(
+        service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Again,
+          new Date(),
+          [note.id],
+        ),
+      ).rejects.toThrow(
+        new BadRequestException(
+          `Step ${note.id} has no answer, so it cannot be missed`,
+        ),
+      );
+
+      // Nothing was written
+      expect(await db.select().from(reviewLogs)).toHaveLength(0);
+      expect(await db.select().from(reviewStepResults)).toHaveLength(0);
+    });
+
+    it('should reject the whole review when one of the missed steps has no answer', async () => {
+      const [meaning] = await insertSteps(testCardId, ['Meaning']);
+      const note = await insertNote(testCardId, 2);
+
+      await expect(
+        service.reviewCard(
+          testUserId,
+          testDeckId,
+          testCardId,
+          Rating.Again,
+          new Date(),
+          [meaning.id, note.id],
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      // Nothing was written, not even the result for the step that has an answer
+      expect(await db.select().from(reviewLogs)).toHaveLength(0);
+      expect(await db.select().from(reviewStepResults)).toHaveLength(0);
     });
 
     it('should link each result to the review log it belongs to', async () => {

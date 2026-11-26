@@ -24,9 +24,9 @@ describe('schema constraints', () => {
   const richTextStep = (position: number) => ({
     cardId,
     position,
-    type: 'RICH_TEXT' as const,
     label: `Step ${position}`,
-    value: {},
+    questionType: 'RICH_TEXT' as const,
+    questionValue: {},
   });
 
   beforeAll(() => {
@@ -77,7 +77,7 @@ describe('schema constraints', () => {
         .insert(steps)
         .values({
           ...richTextStep(1),
-          type: 'CUSTOM',
+          questionType: 'CUSTOM',
           customStepTypeVersionId: versionId,
         })
         .returning();
@@ -87,7 +87,7 @@ describe('schema constraints', () => {
 
     it('should reject a CUSTOM step without a version', async () => {
       await expect(
-        db.insert(steps).values({ ...richTextStep(1), type: 'CUSTOM' }),
+        db.insert(steps).values({ ...richTextStep(1), questionType: 'CUSTOM' }),
       ).rejects.toThrow();
     });
 
@@ -99,17 +99,84 @@ describe('schema constraints', () => {
       ).rejects.toThrow();
     });
 
-    it('should reject an unknown step type', async () => {
+    it('should reject an unknown question type', async () => {
       await expect(
         db
           .insert(steps)
-          .values({ ...richTextStep(1), type: 'HOLOGRAM' as never }),
+          .values({ ...richTextStep(1), questionType: 'HOLOGRAM' as never }),
       ).rejects.toThrow();
     });
 
-    it('should reject a value that is not a JSON object', async () => {
+    it('should reject a question value that is not a JSON object', async () => {
       await expect(
-        db.insert(steps).values({ ...richTextStep(1), value: ['a'] }),
+        db.insert(steps).values({ ...richTextStep(1), questionValue: ['a'] }),
+      ).rejects.toThrow();
+    });
+
+    it('should accept a step without an answer', async () => {
+      const [step] = await db.insert(steps).values(richTextStep(1)).returning();
+
+      expect(step.answerType).toBeNull();
+      expect(step.answerValue).toBeNull();
+    });
+
+    it('should accept an answer of a different kind from the question', async () => {
+      const [step] = await db
+        .insert(steps)
+        .values({
+          ...richTextStep(1),
+          questionType: 'AUDIO',
+          answerType: 'RICH_TEXT',
+          answerValue: { text: 'dawn' },
+        })
+        .returning();
+
+      expect(step.questionType).toBe('AUDIO');
+      expect(step.answerType).toBe('RICH_TEXT');
+      expect(step.answerValue).toEqual({ text: 'dawn' });
+    });
+
+    it('should reject an answer type without an answer value', async () => {
+      await expect(
+        db
+          .insert(steps)
+          .values({ ...richTextStep(1), answerType: 'RICH_TEXT' }),
+      ).rejects.toThrow();
+    });
+
+    it('should reject an answer value without an answer type', async () => {
+      await expect(
+        db.insert(steps).values({ ...richTextStep(1), answerValue: {} }),
+      ).rejects.toThrow();
+    });
+
+    it('should reject an unknown answer type', async () => {
+      await expect(
+        db.insert(steps).values({
+          ...richTextStep(1),
+          answerType: 'HOLOGRAM' as never,
+          answerValue: {},
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('should reject a CUSTOM answer', async () => {
+      await expect(
+        db.insert(steps).values({
+          ...richTextStep(1),
+          answerType: 'CUSTOM' as never,
+          answerValue: {},
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('should reject an answer value that is not a JSON object', async () => {
+      await expect(
+        db.insert(steps).values({
+          ...richTextStep(1),
+          answerType: 'RICH_TEXT',
+          answerValue: ['a'],
+        }),
       ).rejects.toThrow();
     });
 
@@ -136,7 +203,7 @@ describe('schema constraints', () => {
     const insertCustomStep = () =>
       db.insert(steps).values({
         ...richTextStep(1),
-        type: 'CUSTOM',
+        questionType: 'CUSTOM',
         customStepTypeVersionId: versionId,
       });
 

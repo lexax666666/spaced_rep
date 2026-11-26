@@ -43,6 +43,20 @@
       "when": 1795502531153,
       "tag": "0005_live_cards_index",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795715028473,
+      "tag": "0006_step_question_answer",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795715048856,
+      "tag": "0007_question_answer_templates",
+      "breakpoints": true
     }
   ]
 }

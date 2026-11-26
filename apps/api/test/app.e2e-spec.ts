@@ -212,8 +212,18 @@ describe('App (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           steps: [
-            { type: 'RICH_TEXT', label: 'front', value: { text: 'hello' } },
-            { type: 'RICH_TEXT', label: 'back', value: { text: 'こんにちは' } },
+            {
+              label: 'greeting',
+              questionType: 'RICH_TEXT',
+              questionValue: { text: 'hello' },
+              answerType: 'RICH_TEXT',
+              answerValue: { text: 'こんにちは' },
+            },
+            {
+              label: 'note',
+              questionType: 'RICH_TEXT',
+              questionValue: { text: 'used during the day' },
+            },
           ],
         })
         .expect(201);
@@ -224,8 +234,12 @@ describe('App (e2e)', () => {
         res.body.steps.map((s: { position: number }) => s.position),
       ).toEqual([1, 2]);
       expect(res.body.steps).toHaveLength(2);
-      expect(res.body.steps[0].label).toBe('front');
-      expect(res.body.steps[1].label).toBe('back');
+      expect(res.body.steps[0].label).toBe('greeting');
+      expect(res.body.steps[0].answerValue).toEqual({ text: 'こんにちは' });
+      // A step sent without an answer comes back as a note.
+      expect(res.body.steps[1].label).toBe('note');
+      expect(res.body.steps[1].answerType).toBeNull();
+      expect(res.body.steps[1].answerValue).toBeNull();
 
       cardId = res.body.id;
     });
@@ -257,14 +271,25 @@ describe('App (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           steps: [
-            { type: 'RICH_TEXT', label: 'front', value: { text: 'goodbye' } },
-            { type: 'RICH_TEXT', label: 'back', value: { text: 'さようなら' } },
+            {
+              label: 'farewell',
+              questionType: 'RICH_TEXT',
+              questionValue: { text: 'goodbye' },
+              answerType: 'RICH_TEXT',
+              answerValue: { text: 'さようなら' },
+            },
+            {
+              label: 'note',
+              questionType: 'RICH_TEXT',
+              questionValue: { text: 'formal' },
+            },
           ],
         })
         .expect(200);
 
       expect(res.body.steps).toHaveLength(2);
-      expect(res.body.steps[0].value).toEqual({ text: 'goodbye' });
+      expect(res.body.steps[0].questionValue).toEqual({ text: 'goodbye' });
+      expect(res.body.steps[0].answerValue).toEqual({ text: 'さようなら' });
     });
 
     it('DELETE /decks/:deckId/cards/:id — should delete the card', async () => {
@@ -291,7 +316,7 @@ describe('App (e2e)', () => {
       // The migration seeds built-in templates, but the suite truncates them.
       const result = await pool.query<{ id: string }>(
         `INSERT INTO card_templates (name, step_definitions)
-         VALUES ('Vocabulary', '[{"type":"RICH_TEXT","label":"Meaning"}]'::jsonb)
+         VALUES ('Vocabulary', '[{"label":"Meaning","questionType":"AUDIO","answerType":"RICH_TEXT"}]'::jsonb)
          RETURNING id`,
       );
       templateId = result.rows[0].id;
@@ -306,7 +331,7 @@ describe('App (e2e)', () => {
       expect(res.body).toHaveLength(1);
       expect(res.body[0].id).toBe(templateId);
       expect(res.body[0].stepDefinitions).toEqual([
-        { type: 'RICH_TEXT', label: 'Meaning' },
+        { label: 'Meaning', questionType: 'AUDIO', answerType: 'RICH_TEXT' },
       ]);
     });
 
@@ -317,7 +342,13 @@ describe('App (e2e)', () => {
         .send({
           templateId,
           steps: [
-            { type: 'RICH_TEXT', label: 'Meaning', value: { text: 'brief' } },
+            {
+              label: 'Meaning',
+              questionType: 'AUDIO',
+              questionValue: { url: 'brief.mp3' },
+              answerType: 'RICH_TEXT',
+              answerValue: { text: 'brief' },
+            },
           ],
         })
         .expect(201);
@@ -330,7 +361,13 @@ describe('App (e2e)', () => {
         .post(`/decks/${deckId}/cards`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          steps: [{ type: 'RICH_TEXT', label: 'Meaning', value: 'text' }],
+          steps: [
+            {
+              label: 'Meaning',
+              questionType: 'RICH_TEXT',
+              questionValue: 'text',
+            },
+          ],
         })
         .expect(400);
     });
@@ -451,6 +488,50 @@ describe('App (e2e)', () => {
         request(app.getHttpServer()).get(`/decks/${ownDeckId}`),
       ).expect(200);
     });
+
+    it.each([
+      [
+        'an answer type without an answer value',
+        {
+          label: 'x',
+          questionType: 'RICH_TEXT',
+          questionValue: {},
+          answerType: 'RICH_TEXT',
+        },
+      ],
+      [
+        'an answer value without an answer type',
+        {
+          label: 'x',
+          questionType: 'RICH_TEXT',
+          questionValue: {},
+          answerValue: {},
+        },
+      ],
+      [
+        'a CUSTOM answer',
+        {
+          label: 'x',
+          questionType: 'RICH_TEXT',
+          questionValue: {},
+          answerType: 'CUSTOM',
+          answerValue: {},
+        },
+      ],
+      [
+        'a step sent as one face with type and value',
+        { label: 'x', type: 'RICH_TEXT', value: {} },
+      ],
+    ])(
+      'POST /decks/:deckId/cards — should return 400 for %s',
+      async (_case, step) => {
+        await authed(
+          request(app.getHttpServer()).post(`/decks/${ownDeckId}/cards`),
+        )
+          .send({ steps: [step] })
+          .expect(400);
+      },
+    );
 
     it('POST /decks/:deckId/cards — should create an empty card when there is no body', async () => {
       const res = await authed(

@@ -20,10 +20,17 @@ describe('StepsDao', () => {
     return result[0].id;
   };
 
+  // A step with a question and no answer.
   const richText = (label: string) => ({
-    type: 'RICH_TEXT' as const,
     label,
-    value: { text: label },
+    questionType: 'RICH_TEXT' as const,
+    questionValue: { text: label },
+  });
+
+  const withAnswer = (label: string, answer: string) => ({
+    ...richText(label),
+    answerType: 'RICH_TEXT' as const,
+    answerValue: { text: answer },
   });
 
   beforeAll(() => {
@@ -75,9 +82,34 @@ describe('StepsDao', () => {
       ]);
       expect(result[0].id).toBeDefined();
       expect(result[0].cardId).toBe(testCardId);
-      expect(result[0].type).toBe('RICH_TEXT');
-      expect(result[0].value).toEqual({ text: 'Pronunciation' });
+      expect(result[0].questionType).toBe('RICH_TEXT');
+      expect(result[0].questionValue).toEqual({ text: 'Pronunciation' });
       expect(result[0].customStepTypeVersionId).toBeNull();
+    });
+
+    it('should store an answer of a different kind from the question', async () => {
+      const [step] = await dao.insertStepsInOrder(testCardId, [
+        {
+          label: 'Meaning',
+          questionType: 'AUDIO',
+          questionValue: { url: 'madrugada.mp3' },
+          answerType: 'RICH_TEXT',
+          answerValue: { text: 'The hours before dawn' },
+        },
+      ]);
+
+      expect(step.questionType).toBe('AUDIO');
+      expect(step.answerType).toBe('RICH_TEXT');
+      expect(step.answerValue).toEqual({ text: 'The hours before dawn' });
+    });
+
+    it('should store a step without an answer as a note', async () => {
+      const [step] = await dao.insertStepsInOrder(testCardId, [
+        richText('Hook'),
+      ]);
+
+      expect(step.answerType).toBeNull();
+      expect(step.answerValue).toBeNull();
     });
 
     it('should return empty array when given empty array', async () => {
@@ -140,7 +172,35 @@ describe('StepsDao', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(original.id);
       expect(result[0].label).toBe('New label');
-      expect(result[0].value).toEqual({ text: 'New label' });
+      expect(result[0].questionValue).toEqual({ text: 'New label' });
+    });
+
+    it('should give an answer to a kept step that had none', async () => {
+      const [original] = await dao.insertStepsInOrder(testCardId, [
+        richText('Gender'),
+      ]);
+
+      const [updated] = await dao.syncSteps(testCardId, [
+        { id: original.id, ...withAnswer('Gender', 'la madrugada') },
+      ]);
+
+      expect(updated.id).toBe(original.id);
+      expect(updated.answerType).toBe('RICH_TEXT');
+      expect(updated.answerValue).toEqual({ text: 'la madrugada' });
+    });
+
+    it('should remove the answer of a kept step sent without one', async () => {
+      const [original] = await dao.insertStepsInOrder(testCardId, [
+        withAnswer('Gender', 'la madrugada'),
+      ]);
+
+      const [updated] = await dao.syncSteps(testCardId, [
+        { id: original.id, ...richText('Gender') },
+      ]);
+
+      expect(updated.id).toBe(original.id);
+      expect(updated.answerType).toBeNull();
+      expect(updated.answerValue).toBeNull();
     });
 
     it('should swap the positions of two steps', async () => {

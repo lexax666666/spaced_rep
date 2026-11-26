@@ -35,8 +35,9 @@ export class ReviewsService {
    * Rates a card once and reschedules it.
    *
    * `missedStepIds` names the steps the user got wrong. It never changes the
-   * schedule: it is only recorded, one result per step, so that a step missed
-   * again and again can later be split out, or one always passed be skipped.
+   * schedule: it is only recorded, one result per step that has an answer, so
+   * that a step missed again and again can later be split out, or one always
+   * passed be skipped. A step without an answer is a note and gets no result.
    */
   async reviewCard(
     userId: string,
@@ -68,14 +69,25 @@ export class ReviewsService {
         throw new NotFoundException('Card not found');
       }
 
-      // Every step of the card gets a result, so the missed ones must be its own.
+      // Every step that asks something gets a result, so the missed ones must
+      // be the card's own and must have an answer.
       const cardSteps = await this.stepsDao.getStepsForCard(cardId, tx);
       const cardStepIds = new Set(cardSteps.map((step) => step.id));
+      const answerableSteps = cardSteps.filter(
+        (step) => step.answerType !== null,
+      );
+      const answerableStepIds = new Set(answerableSteps.map((step) => step.id));
       const missed = new Set(missedStepIds);
       const foreignStepId = [...missed].find((id) => !cardStepIds.has(id));
       if (foreignStepId) {
         throw new BadRequestException(
           `Step ${foreignStepId} does not belong to this card`,
+        );
+      }
+      const noteStepId = [...missed].find((id) => !answerableStepIds.has(id));
+      if (noteStepId) {
+        throw new BadRequestException(
+          `Step ${noteStepId} has no answer, so it cannot be missed`,
         );
       }
 
@@ -125,9 +137,9 @@ export class ReviewsService {
         tx,
       );
 
-      // Record how each step went
+      // Record how each step that asks something went
       await this.reviewStepResultsDao.insertMany(
-        cardSteps.map((step) => ({
+        answerableSteps.map((step) => ({
           reviewLogId: reviewLog.id,
           stepId: step.id,
           outcome: missed.has(step.id) ? 'FAILED' : 'PASSED',
